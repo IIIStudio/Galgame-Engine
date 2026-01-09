@@ -1,0 +1,2330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>工作流编辑器 - Galgame Engine</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #171718;
+      color: #ffffff;
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .toolbar {
+      background: #2d2e32;
+      border-bottom: 1px solid #3a3a3c;
+      padding: 10px 20px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      height: 60px;
+      flex-shrink: 0;
+    }
+
+    .toolbar button {
+      background: #3a3a3c;
+      border: none;
+      color: #ffffff;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.2s;
+    }
+
+    .toolbar button:hover {
+      background: #4a4a4c;
+    }
+
+    .toolbar button:active {
+      background: #5a5a5c;
+    }
+
+    .toolbar-divider {
+      width: 1px;
+      height: 30px;
+      background: #3a3a3c;
+      margin: 0 5px;
+    }
+
+    .main-container {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    .sidebar {
+      width: 200px;
+      background: #2d2e32;
+      border-right: 1px solid #3a3a3c;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .sidebar-header {
+      padding: 15px;
+      border-bottom: 1px solid #3a3a3c;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .node-palette {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .node-template {
+      background: #3a3a3c;
+      border: 1px solid #4a4a4c;
+      border-radius: 6px;
+      padding: 10px 12px;
+      cursor: grab;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+      -webkit-user-select: none;
+         -moz-user-select: none;
+              user-select: none;
+    }
+
+    .node-template:hover {
+      background: #4a4a4c;
+      border-color: #5a5a5c;
+      transform: translateX(2px);
+    }
+
+    .node-template:active {
+      cursor: grabbing;
+      transform: translateX(4px);
+    }
+
+    .node-template.dragging {
+      opacity: 0.5;
+    }
+
+    .node-template-icon {
+      font-size: 18px;
+    }
+
+    .node-template-label {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .editor-container {
+      flex: 1;
+      position: relative;
+      background: #171718;
+      overflow: hidden;
+    }
+
+    .workflow-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .status-bar {
+      background: #2d2e32;
+      border-top: 1px solid #3a3a3c;
+      padding: 8px 20px;
+      font-size: 12px;
+      color: #a1a1aa;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 32px;
+      flex-shrink: 0;
+    }
+
+    .status-info {
+      display: flex;
+      gap: 20px;
+    }
+
+    .node-palette::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .node-palette::-webkit-scrollbar-track {
+      background: #2d2e32;
+    }
+
+    .node-palette::-webkit-scrollbar-thumb {
+      background: #4a4a4c;
+      border-radius: 3px;
+    }
+
+    .node-palette::-webkit-scrollbar-thumb:hover {
+      background: #5a5a5c;
+    }
+  </style>
+  <script type="module" crossorigin>var A=Object.defineProperty;var B=(h,e,t)=>e in h?A(h,e,{enumerable:!0,configurable:!0,writable:!0,value:t}):h[e]=t;var d=(h,e,t)=>B(h,typeof e!="symbol"?e+"":e,t);(function(){const e=document.createElement("link").relList;if(e&&e.supports&&e.supports("modulepreload"))return;for(const r of document.querySelectorAll('link[rel="modulepreload"]'))a(r);new MutationObserver(r=>{for(const s of r)if(s.type==="childList")for(const o of s.addedNodes)o.tagName==="LINK"&&o.rel==="modulepreload"&&a(o)}).observe(document,{childList:!0,subtree:!0});function t(r){const s={};return r.integrity&&(s.integrity=r.integrity),r.referrerPolicy&&(s.referrerPolicy=r.referrerPolicy),r.crossOrigin==="use-credentials"?s.credentials="include":r.crossOrigin==="anonymous"?s.credentials="omit":s.credentials="same-origin",s}function a(r){if(r.ep)return;r.ep=!0;const s=t(r);fetch(r.href,s)}})();const E={maxSize:50*1024*1024,allowedImageTypes:[".png",".jpg",".jpeg",".gif",".webp",".svg"],allowedAudioTypes:[".mp3",".wav",".ogg",".m4a",".aac"]};class m{constructor(e={}){d(this,"resources",new Map);d(this,"config");d(this,"onResourceAdd");d(this,"onResourceRemove");this.config={...E,...e}}async addResource(e,t,a){var c;if(this.config.maxSize&&e.size>this.config.maxSize)throw new Error(`文件大小超过限制（最大 ${this.config.maxSize/1024/1024}MB）`);const r=this.getFileExtension(e.name).toLowerCase(),s=t.includes("bgm")||t.includes("sfx")||t.includes("voice")?this.config.allowedAudioTypes:this.config.allowedImageTypes;if(s&&!s.includes(r))throw new Error(`不支持的文件类型。支持：${s.join(", ")}`);const o=a||this.generateResourceId(t),n=await this.createFileUrl(e),i={id:o,name:e.name,type:t,url:n,size:e.size,uploadTime:Date.now()};return this.resources.set(o,i),(c=this.onResourceAdd)==null||c.call(this,i),i}async addResourceFromUrl(e,t,a,r){var n;const s=r||this.generateResourceId(t),o={id:s,name:a,type:t,url:e,size:0,uploadTime:Date.now()};return this.resources.set(s,o),(n=this.onResourceAdd)==null||n.call(this,o),o}getResource(e){return this.resources.get(e)}getAllResources(){return Array.from(this.resources.values())}getResourcesByType(e){return Array.from(this.resources.values()).filter(t=>t.type===e)}removeResource(e){var r;const t=this.resources.get(e);if(!t)return!1;t.url.startsWith("blob:")&&URL.revokeObjectURL(t.url);const a=this.resources.delete(e);return a&&((r=this.onResourceRemove)==null||r.call(this,e)),a}clearAll(){this.resources.forEach((e,t)=>{e.url.startsWith("blob:")&&URL.revokeObjectURL(e.url)}),this.resources.clear()}exportResources(){const e={};return this.resources.forEach(t=>{e[t.id]=t}),e}importResources(e){Object.entries(e).forEach(([t,a])=>{this.resources.set(t,a)})}onAdd(e){this.onResourceAdd=e}onRemove(e){this.onResourceRemove=e}async createFileUrl(e){return URL.createObjectURL(e)}generateResourceId(e){const a={background:"bg",character:"char",expression:"expr",bgm:"bgm",sfx:"sfx",voice:"voice",ending:"end"}[e]||"res",r=Date.now().toString(36),s=Math.random().toString(36).substring(2,8);return`${a}_${r}_${s}`}getFileExtension(e){const t=e.lastIndexOf(".");return t>=0?e.substring(t):""}static formatFileSize(e){if(e===0)return"0 B";const t=1024,a=["B","KB","MB","GB"],r=Math.floor(Math.log(e)/Math.log(t));return Math.round(e/Math.pow(t,r)*100)/100+" "+a[r]}static async openFileDialog(e,t=!1){return new Promise((a,r)=>{const s=document.createElement("input");s.type="file",s.accept=e,s.multiple=t,s.onchange=o=>{const n=Array.from(o.target.files||[]);a(n)},s.oncancel=()=>{a([])},s.onerror=()=>{r(new Error("文件选择失败"))},s.click()})}static getImageAcceptTypes(){var e;return((e=E.allowedImageTypes)==null?void 0:e.join(","))||".png,.jpg,.jpeg,.gif,.webp,.svg"}static getAudioAcceptTypes(){var e;return((e=E.allowedAudioTypes)==null?void 0:e.join(","))||".mp3,.wav,.ogg,.m4a,.aac"}}class S{constructor(e,t){d(this,"container");d(this,"modal");d(this,"options");d(this,"characterLibrary");d(this,"handleEscape");this.container=e,this.options=t,this.characterLibrary=t.characterLibrary,this.createModal(),this.bindEvents()}createModal(){this.modal=document.createElement("div"),this.modal.className="resource-selector-modal",this.modal.innerHTML=`
+      <div class="resource-selector-overlay"></div>
+      <div class="resource-selector-content">
+        <div class="resource-selector-header">
+          <h3>${this.getTitle()}</h3>
+          <button class="resource-selector-close">&times;</button>
+        </div>
+        <div class="resource-selector-body">
+          ${this.renderContent()}
+        </div>
+        <div class="resource-selector-footer">
+          <button class="resource-selector-btn resource-selector-btn-add">添加${this.getAddButtonText()}</button>
+          <button class="resource-selector-btn resource-selector-btn-cancel">取消</button>
+        </div>
+      </div>
+    `,document.body.appendChild(this.modal)}getTitle(){return{character:"选择角色",expression:"选择表情",background:"选择背景",bgm:"选择背景音乐",sfx:"选择音效",voice:"选择语音",ending:"选择解锁图片"}[this.options.mode]||"选择资源"}getAddButtonText(){return{character:"角色",expression:"表情",background:"背景",bgm:"背景音乐",sfx:"音效",voice:"语音",ending:"解锁图片"}[this.options.mode]||"资源"}renderContent(){switch(this.options.mode){case"character":return this.renderCharacterList();case"expression":return this.renderExpressionList();case"background":return this.renderResourceList("background");case"bgm":return this.renderResourceList("bgm");case"sfx":return this.renderResourceList("sfx");case"voice":return this.renderResourceList("voice");case"ending":return this.renderResourceList("ending");default:return"<p>未知选择模式</p>"}}renderCharacterList(){const e=this.characterLibrary.getAllCharacters();return e.length===0?`
+        <div class="resource-selector-empty">
+          <p>暂无角色</p>
+          <p>点击下方"添加角色"按钮创建新角色</p>
+        </div>
+      `:`
+      <div class="resource-selector-grid">
+        ${e.map(t=>`
+          <div class="resource-selector-item" data-id="${t.id}">
+            <div class="resource-selector-preview">
+              ${this.getDefaultExpressionPreview(t.id)}
+            </div>
+            <div class="resource-selector-info">
+              <div class="resource-selector-name">${t.name}</div>
+              <div class="resource-selector-desc">${t.description||"无描述"}</div>
+              <div class="resource-selector-count">${t.expressions.length} 个表情</div>
+            </div>
+            <div class="resource-selector-actions">
+              <button class="resource-selector-btn-delete" data-id="${t.id}" title="删除角色">🗑️</button>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    `}renderExpressionList(){if(!this.options.characterId)return'<p class="resource-selector-error">请先选择角色</p>';const e=this.characterLibrary.getCharacterExpressions(this.options.characterId);return Array.isArray(e)?e.length===0?`
+        <div class="resource-selector-empty">
+          <p>该角色暂无表情</p>
+          <p>点击下方"添加表情"按钮添加新表情</p>
+        </div>
+      `:`
+      <div class="resource-selector-grid">
+        ${e.map(t=>`
+          <div class="resource-selector-item ${t.isDefault?"is-default":""}" data-id="${t.id}">
+            <div class="resource-selector-preview">
+              <img src="${this.getExpressionResourceUrl(t.id)}" alt="${t.name}">
+            </div>
+            <div class="resource-selector-info">
+              <div class="resource-selector-name">${t.name}</div>
+              ${t.isDefault?'<div class="resource-selector-badge">默认</div>':""}
+            </div>
+            <div class="resource-selector-actions">
+              <button class="resource-selector-btn-delete" data-id="${t.id}" title="删除表情">🗑️</button>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    `:(console.error("[ResourceSelector] expressions is not an array:",e),`
+        <div class="resource-selector-empty">
+          <p>该角色数据格式错误</p>
+        </div>
+      `)}renderResourceList(e){const t=this.getGlobalResourceList(e);if(t.length===0){const a={background:"背景",bgm:"背景音乐",sfx:"音效",voice:"语音",ending:"解锁图片"};return`
+        <div class="resource-selector-empty">
+          <p>暂无${a[e]||"资源"}</p>
+          <p>点击下方"添加${a[e]}"按钮添加新资源</p>
+        </div>
+      `}return`
+      <div class="resource-selector-grid resource-selector-grid-${e}">
+        ${t.map(({name:a,resource:r})=>`
+          <div class="resource-selector-item" data-name="${a}">
+            <div class="resource-selector-preview">
+              ${this.renderResourcePreview(r,e)}
+            </div>
+            <div class="resource-selector-info">
+              <div class="resource-selector-name">${a}</div>
+              <div class="resource-selector-size">${m.formatFileSize(r.size)}</div>
+            </div>
+            <div class="resource-selector-actions">
+              <button class="resource-selector-btn-delete" data-name="${a}" title="删除${a}">🗑️</button>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    `}getGlobalResourceList(e){switch(e){case"background":return this.characterLibrary.getGlobalBackgroundList();case"bgm":return this.characterLibrary.getGlobalBGMList();case"sfx":return this.characterLibrary.getGlobalSFXList();case"voice":return this.characterLibrary.getGlobalVoiceList();case"ending":return this.characterLibrary.getGlobalEndingList();default:return[]}}renderResourcePreview(e,t){return t==="background"||t==="ending"?`<img src="${e.url}" alt="${e.name}">`:t==="bgm"||t==="sfx"||t==="voice"?'<div class="resource-selector-audio">🎵</div>':""}getDefaultExpressionPreview(e){const t=this.characterLibrary.getDefaultExpression(e);if(!t)return'<div class="resource-selector-placeholder">👤</div>';const a=this.characterLibrary.getExpressionResource(t.id);return a?`<img src="${a.url}" alt="${t.name}">`:'<div class="resource-selector-placeholder">👤</div>'}getExpressionResourceUrl(e){const t=this.characterLibrary.getExpressionResource(e);return(t==null?void 0:t.url)||""}bindEvents(){const e=this.modal.querySelector(".resource-selector-close");e==null||e.addEventListener("click",()=>this.destroy());const t=this.modal.querySelector(".resource-selector-btn-cancel");t==null||t.addEventListener("click",()=>this.destroy());const a=this.modal.querySelector(".resource-selector-btn-add");a==null||a.addEventListener("click",()=>this.handleCreate());const r=this.modal.querySelector(".resource-selector-overlay");r==null||r.addEventListener("click",()=>this.destroy()),this.handleEscape=s=>{s.key==="Escape"&&this.destroy()},document.addEventListener("keydown",this.handleEscape),this.modal.querySelectorAll(".resource-selector-item[data-id], .resource-selector-item[data-name]").forEach(s=>{s.addEventListener("click",o=>{if(o.target.classList.contains("resource-selector-btn-delete"))return;const n=s.getAttribute("data-id")||s.getAttribute("data-name");n&&(this.options.onSelect(n),this.destroy())})}),this.modal.querySelectorAll(".resource-selector-btn-delete").forEach(s=>{s.addEventListener("click",o=>{o.stopPropagation();const n=s.getAttribute("data-id"),i=s.getAttribute("data-name");this.handleDelete(n||i||"")})})}async handleDelete(e){const a={character:"角色",expression:"表情",background:"背景",bgm:"背景音乐",sfx:"音效",voice:"语音",ending:"解锁图片"}[this.options.mode]||"资源";if(console.log(`准备删除${a}:`,e),!confirm(`确定要删除此${a}吗？此操作不可恢复！`)){console.log("用户取消删除");return}try{let r=!1;switch(this.options.mode){case"character":r=this.characterLibrary.removeCharacter(e);break;case"expression":this.options.characterId&&(r=this.characterLibrary.removeExpression(this.options.characterId,e));break;case"background":r=this.characterLibrary.removeGlobalResource("background",e);break;case"bgm":r=this.characterLibrary.removeGlobalResource("bgm",e);break;case"sfx":r=this.characterLibrary.removeGlobalResource("sfx",e);break;case"voice":r=this.characterLibrary.removeGlobalResource("voice",e);break;case"ending":r=this.characterLibrary.removeGlobalResource("ending",e);break}console.log("删除结果:",r),r?(console.log("刷新内容..."),this.refreshContent()):console.warn("删除失败，资源可能不存在")}catch(r){console.error("删除失败:",r),alert(`删除失败: ${r}`)}}handleCreate(){switch(this.options.mode){case"character":this.createCharacter();break;case"expression":this.createExpression();break;case"background":this.addResource("background");break;case"bgm":this.addResource("bgm");break;case"sfx":this.addResource("sfx");break;case"voice":this.addResource("voice");break;case"ending":this.addResource("ending");break}}async createCharacter(){const e=prompt("请输入角色名称：");if(!e||!e.trim())return;const t=prompt("请输入角色描述（可选）：");try{await this.characterLibrary.createCharacter(e.trim(),t),this.refreshContent()}catch(a){console.error("创建角色失败:",a),alert(`创建角色失败: ${a}`)}}async createExpression(){if(!this.options.characterId){alert("请先选择角色");return}const e=prompt("请输入表情名称：");if(!e||!e.trim())return;const t=document.createElement("input");t.type="file",t.accept=m.getImageAcceptTypes(),t.onchange=async a=>{const r=a.target.files;if(r&&r.length>0)try{await this.characterLibrary.addExpression(this.options.characterId,e.trim(),r[0]),this.refreshContent()}catch(s){console.error("添加表情失败:",s),alert(`添加表情失败: ${s}`)}},t.click()}async addResource(e){const t=prompt("请输入资源名称：");if(!t||!t.trim())return;const a=document.createElement("input");a.type="file";const r={background:m.getImageAcceptTypes(),bgm:m.getAudioAcceptTypes(),sfx:m.getAudioAcceptTypes(),voice:m.getAudioAcceptTypes(),ending:m.getImageAcceptTypes()};a.accept=r[e]||"*",a.onchange=async s=>{const o=s.target.files;if(o&&o.length>0)try{switch(e){case"background":await this.characterLibrary.addGlobalBackground(o[0],t.trim());break;case"bgm":await this.characterLibrary.addGlobalBGM(o[0],t.trim());break;case"sfx":await this.characterLibrary.addGlobalSFX(o[0],t.trim());break;case"voice":await this.characterLibrary.addGlobalVoice(o[0],t.trim());break;case"ending":await this.characterLibrary.addGlobalEnding(o[0],t.trim());break}this.refreshContent()}catch(n){console.error("添加资源失败:",n),alert(`添加资源失败: ${n}`)}},a.click()}refreshContent(){const e=this.modal.querySelector(".resource-selector-body");e&&(e.innerHTML=this.renderContent(),e.querySelectorAll(".resource-selector-item[data-id], .resource-selector-item[data-name]").forEach(t=>{t.addEventListener("click",a=>{if(a.target.classList.contains("resource-selector-btn-delete"))return;const r=t.getAttribute("data-id")||t.getAttribute("data-name");r&&(this.options.onSelect(r),this.destroy())})}),e.querySelectorAll(".resource-selector-btn-delete").forEach(t=>{t.addEventListener("click",a=>{a.stopPropagation();const r=t.getAttribute("data-id"),s=t.getAttribute("data-name");this.handleDelete(r||s||"")})}))}destroy(){this.modal.parentElement&&(document.removeEventListener("keydown",this.handleEscape),this.modal.remove())}}function H(){if(document.getElementById("resource-selector-styles"))return;const h=document.createElement("style");h.id="resource-selector-styles",h.textContent=`
+    .resource-selector-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 2000;
+    }
+
+    .resource-selector-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+    }
+
+    .resource-selector-content {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #1a1a1a;
+      border: 1px solid #3a3a3c;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 900px;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+
+    .resource-selector-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+      border-bottom: 1px solid #3a3a3c;
+      background: #2a2a2a;
+      border-radius: 12px 12px 0 0;
+    }
+
+    .resource-selector-header h3 {
+      margin: 0;
+      color: #fff;
+      font-size: 20px;
+    }
+
+    .resource-selector-close {
+      font-size: 32px;
+      color: #a1a1aa;
+      cursor: pointer;
+      line-height: 1;
+      transition: color 0.2s;
+      background: none;
+      border: none;
+      padding: 0;
+    }
+
+    .resource-selector-close:hover {
+      color: #fff;
+    }
+
+    .resource-selector-body {
+      padding: 24px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .resource-selector-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .resource-selector-item {
+      background: #2a2a2a;
+      border: 2px solid transparent;
+      border-radius: 8px;
+      padding: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .resource-selector-item:hover {
+      border-color: #4a9eff;
+      transform: translateY(-2px);
+    }
+
+    .resource-selector-item.is-default {
+      border-color: #4ade80;
+    }
+
+    .resource-selector-preview {
+      width: 100%;
+      height: 150px;
+      background: #1a1a1a;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+
+    .resource-selector-preview img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
+    .resource-selector-placeholder {
+      font-size: 48px;
+    }
+
+    .resource-selector-audio {
+      font-size: 48px;
+    }
+
+    .resource-selector-info {
+      color: #fff;
+    }
+
+    .resource-selector-name {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .resource-selector-desc {
+      font-size: 12px;
+      color: #a1a1aa;
+      margin-bottom: 4px;
+    }
+
+    .resource-selector-count {
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    .resource-selector-size {
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    .resource-selector-badge {
+      display: inline-block;
+      background: #4ade80;
+      color: #000;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+
+    .resource-selector-empty {
+      text-align: center;
+      padding: 60px 20px;
+      color: #a1a1aa;
+    }
+
+    .resource-selector-error {
+      color: #f87171;
+      text-align: center;
+      padding: 40px;
+    }
+
+    .resource-selector-actions {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .resource-selector-item:hover .resource-selector-actions {
+      opacity: 1;
+    }
+
+    .resource-selector-btn-delete {
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      background: rgba(239, 68, 68, 0.8);
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+
+    .resource-selector-btn-delete:hover {
+      background: rgb(239, 68, 68);
+    }
+
+    .resource-selector-footer {
+      padding: 16px 24px;
+      border-top: 1px solid #3a3a3c;
+      background: #2a2a2a;
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      border-radius: 0 0 12px 12px;
+    }
+
+    .resource-selector-btn {
+      padding: 10px 24px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.2s;
+    }
+
+    .resource-selector-btn-add {
+      background: #4a9eff;
+      color: #fff;
+    }
+
+    .resource-selector-btn-add:hover {
+      background: #3a8edf;
+    }
+
+    .resource-selector-btn-cancel {
+      background: #3a3a3c;
+      color: #fff;
+    }
+
+    .resource-selector-btn-cancel:hover {
+      background: #4a4a4c;
+    }
+  `,document.head.appendChild(h)}H();class O{constructor(){d(this,"state");this.state=this.createInitialState()}createInitialState(){return{nodes:new Map,connections:[],nodeIdCounter:1,offset:[0,0],scale:1,drag:{isDraggingCanvas:!1,isDraggingNode:!1,isDraggingConnection:!1,isBoxSelecting:!1,dragStart:[0,0],dragStartGraph:[0,0],dragOffset:[0,0],connectionStart:null,connectionEnd:null,connectionTargetSlot:null,dragNodeStartPositions:null,dragStartMouse:null},selection:{selectedNodes:new Set,selectedConnections:new Set,selectionBox:null},clipboard:null,hover:{hoveredNode:null,hoveredSlot:null,hoveredConnection:null}}}getState(){return this.state}getNodes(){return this.state.nodes}getNode(e){return this.state.nodes.get(e)}setNode(e,t){this.state.nodes.set(e,t)}deleteNode(e){return this.state.nodes.delete(e)}clearNodes(){this.state.nodes.clear()}getConnections(){return this.state.connections}setConnections(e){this.state.connections=e}addConnection(e){this.state.connections.push(e)}deleteConnection(e){const t=this.state.connections.findIndex(a=>a.id===e);return t!==-1?(this.state.connections.splice(t,1),!0):!1}getConnectionToSlot(e,t,a){return a?this.state.connections.find(r=>r.targetId===e&&r.targetSlot===t)||null:this.state.connections.find(r=>r.sourceId===e&&r.sourceSlot===t)||null}getNextNodeId(){return String(this.state.nodeIdCounter++).padStart(5,"0")}setNodeIdCounter(e){this.state.nodeIdCounter=e}getOffset(){return this.state.offset}setOffset(e){this.state.offset=e}updateOffset(e,t){this.state.offset[0]+=e,this.state.offset[1]+=t}getScale(){return this.state.scale}setScale(e){this.state.scale=e}getDragState(){return this.state.drag}updateDragState(e){this.state.drag={...this.state.drag,...e}}getSelectionState(){return this.state.selection}getSelectedNodes(){return this.state.selection.selectedNodes}addSelectedNode(e){this.state.selection.selectedNodes.add(e)}removeSelectedNode(e){this.state.selection.selectedNodes.delete(e)}clearSelectedNodes(){this.state.selection.selectedNodes.clear()}getSelectedConnections(){return this.state.selection.selectedConnections}clearSelectedConnections(){this.state.selection.selectedConnections.clear()}getSelectionBox(){return this.state.selection.selectionBox}setSelectionBox(e){this.state.selection.selectionBox=e}getClipboard(){return this.state.clipboard}setClipboard(e){this.state.clipboard=e}getHoverState(){return this.state.hover}updateHoverState(e){this.state.hover={...this.state.hover,...e}}clearAll(){this.clearNodes(),this.setConnections([]),this.clearSelectedNodes(),this.clearSelectedConnections(),this.setNodeIdCounter(1),this.setOffset([0,0]),this.setScale(1),this.setSelectionBox(null)}}class N{constructor(){d(this,"nodeTypeConfig");this.nodeTypeConfig={start:{icon:"▶️",label:"开始",color:"#4ade80"},dialogue:{icon:"💬",label:"对话",color:"#60a5fa"},branch:{icon:"🔀",label:"分支",color:"#f59e0b"},scene:{icon:"🖼️",label:"场景",color:"#a78bfa"},character:{icon:"👤",label:"角色",color:"#f472b6"},audio:{icon:"🎵",label:"音频",color:"#2dd4bf"},sfx:{icon:"🔊",label:"音效",color:"#f59e0b"},variable:{icon:"📊",label:"变量",color:"#fb923c"},condition:{icon:"❓",label:"条件",color:"#a3e635"},jump:{icon:"⏭️",label:"跳转",color:"#fbbf24"},ending:{icon:"🏁",label:"结局",color:"#f87171"},html:{icon:"🌐",label:"HTML",color:"#e74c3c"}}}getNodeTypeConfig(e){return this.nodeTypeConfig[e]||this.nodeTypeConfig.dialogue}getAllNodeTypeConfigs(){return this.nodeTypeConfig}createNode(e,t,a,r){const s={id:t,type:e,x:a,y:r,data:{},inputs:[],outputs:[]};return this.configureNodeByType(s)}configureNodeByType(e){switch(e.type){case"start":this.configureStartNode(e);break;case"dialogue":this.configureDialogueNode(e);break;case"branch":this.configureBranchNode(e);break;case"scene":this.configureSceneNode(e);break;case"character":this.configureCharacterNode(e);break;case"audio":this.configureAudioNode(e);break;case"sfx":this.configureSfxNode(e);break;case"variable":this.configureVariableNode(e);break;case"condition":this.configureConditionNode(e);break;case"jump":this.configureJumpNode(e);break;case"ending":this.configureEndingNode(e);break;case"html":this.configureHTMLNode(e);break;default:this.configureDefaultNode(e)}return e}configureStartNode(e){e.data={title:"我的游戏",author:"作者名",version:"1.0.0"},e.outputs=[{name:"开始",type:"flow"}]}configureDialogueNode(e){e.data={text:"你好，世界！",character:"角色名",typingSpeed:30,waitTime:1e3},e.inputs=[{name:"进入",type:"flow"}],e.outputs=[{name:"完成",type:"flow"}]}configureBranchNode(e){e.data={options:[{text:"选项 1",condition:"",nextNode:""},{text:"选项 2",condition:"",nextNode:""},{text:"选项 3",condition:"",nextNode:""}]},e.inputs=[{name:"进入",type:"flow"}],e.outputs=e.data.options.map((t,a)=>({name:`选项 ${a+1}`,type:"flow"}))}configureSceneNode(e){e.data={backgroundName:"",transition:"fade",duration:500},e.inputs=[{name:"进入",type:"flow"}],e.outputs=[{name:"完成",type:"flow"}]}configureCharacterNode(e){e.data={characterId:"char_001",action:"show",position:"center",positionPercent:50,expression:"normal",expressionId:"normal",fadeDuration:300,shakeIntensity:10,shakeDuration:500,blinkDuration:200},e.inputs=[{name:"进入",type:"flow"}],e.outputs=[{name:"完成",type:"flow"}]}configureAudioNode(e){e.data={audioId:"",type:"music",loop:!0,volume:1},e.inputs=[{name:"触发",type:"flow"}],e.outputs=[{name:"完成",type:"flow"}]}configureSfxNode(e){e.data={sfxId:"",volume:1},e.inputs=[{name:"触发",type:"flow"}],e.outputs=[{name:"完成",type:"flow"}]}configureVariableNode(e){e.data={variable:"score",operation:"set",value:0},e.inputs=[{name:"进入",type:"flow"}],e.outputs=[{name:"完成",type:"flow"}]}configureConditionNode(e){e.data={variable:"score",operator:">=",value:100},e.inputs=[{name:"条件",type:"flow"}],e.outputs=[{name:"为真",type:"flow"},{name:"为假",type:"flow"}]}configureJumpNode(e){e.data={target:"node_id",type:"node"},e.inputs=[{name:"触发",type:"flow"}],e.outputs=[{name:"跳转",type:"flow"}]}configureEndingNode(e){e.data={endingId:"ending_001",title:"结局标题",unlockImage:""},e.inputs=[{name:"进入",type:"flow"}],e.outputs=[]}configureHTMLNode(e){e.data={id:"html_element_1",code:"",layerPosition:"above-character",visible:!0},e.inputs=[{name:"触发",type:"flow"}],e.outputs=[{name:"完成",type:"flow"}]}configureDefaultNode(e){e.data={},e.inputs=[{name:"输入",type:"flow"}],e.outputs=[{name:"输出",type:"flow"}]}updateBranchOptions(e,t){e.data.options=t,e.outputs=t.map((a,r)=>({name:`选项 ${r+1}`,type:"flow"}))}addBranchOption(e){e.data.options||(e.data.options=[]);const t=e.data.options.length;e.data.options.push({text:`选项 ${t+1}`,condition:"",nextNode:""}),this.updateBranchOptions(e,e.data.options)}removeBranchOption(e){!e.data.options||e.data.options.length<=1||(e.data.options.pop(),this.updateBranchOptions(e,e.data.options))}}class G{constructor(e,t){d(this,"stateManager");d(this,"nodeFactory");d(this,"container");this.stateManager=e,this.nodeFactory=new N,this.container=t}addNode(e,t,a){const r=this.stateManager.getNextNodeId();if(t===void 0||a===void 0){const o=this.container.clientWidth,n=this.container.clientHeight,i=this.stateManager.getOffset(),c=this.stateManager.getScale(),l=200,u=120;t=(o/2-i[0])/c-l/2,a=(n/2-i[1])/c-u/2}const s=this.nodeFactory.createNode(e,r,t,a);return this.stateManager.setNode(r,s),s}deleteNode(e){const t=this.stateManager.getConnections();this.stateManager.deleteNode(e),this.stateManager.setConnections(t.filter(a=>a.sourceId!==e&&a.targetId!==e))}getNodeFactory(){return this.nodeFactory}updateNodeProperty(e,t,a){const r=this.stateManager.getNode(e);if(r)if(r.type==="branch"&&t.startsWith("option_")){const s=parseInt(t.replace("option_",""));r.data.options&&r.data.options[s]&&(r.data.options[s].text=a)}else if(r.type==="jump"&&t==="targetSelect"){if(a!=="--- 手动输入 ---"){const s=a.split(" (")[0].trim();r.data.target=s}}else r.data[t]=a}addBranchOption(e){const t=this.stateManager.getNode(e);if(!t)return;if(t.data.options.length>=10){alert("最多支持 10 个选项");return}this.nodeFactory.addBranchOption(t),console.log(`✓ 节点 ${e} 增加选项`)}removeBranchOption(e){const t=this.stateManager.getNode(e);if(!t)return;if(t.data.options.length<=1){alert("至少需要保留 1 个选项");return}const r=t.data.options.length-1,s=this.stateManager.getConnections();this.stateManager.setConnections(s.filter(o=>{if(o.sourceId===e){if(o.sourceSlot===r)return!1;o.sourceSlot>r&&o.sourceSlot--}return!0})),this.nodeFactory.removeBranchOption(t),console.log(`✓ 节点 ${e} 减少选项`)}clearAll(){this.stateManager.clearAll()}getAllNodes(){return Array.from(this.stateManager.getNodes().values())}getSelectedNodeIds(){return Array.from(this.stateManager.getSelectedNodes())}}class _{constructor(e){d(this,"ctx");d(this,"config");this.ctx=e,this.config={NODE_WIDTH:200,NODE_HEIGHT:120,HEADER_HEIGHT:35,NODE_RADIUS:8,SLOT_RADIUS:6,GRID_SIZE:20}}getConfig(){return this.config}clear(e,t){this.ctx.fillStyle="#1a1a1a",this.ctx.fillRect(0,0,e,t)}drawGrid(e,t,a,r){const s=this.config.GRID_SIZE*r,o=a[0]%s,n=a[1]%s;this.ctx.strokeStyle="#2a2a2a",this.ctx.lineWidth=1,this.ctx.beginPath();for(let i=o;i<e;i+=s)this.ctx.moveTo(i,0),this.ctx.lineTo(i,t);for(let i=n;i<t;i+=s)this.ctx.moveTo(0,i),this.ctx.lineTo(e,i);this.ctx.stroke()}drawConnections(e,t,a=null,r){for(const s of e){const o=t.get(s.sourceId),n=t.get(s.targetId);if(!o||!n)continue;if(r){const b=o.x+this.config.NODE_WIDTH,y=o.y+this.config.NODE_HEIGHT,v=n.x+this.config.NODE_WIDTH,k=n.y+this.config.NODE_HEIGHT,g=!(b<r.minX||o.x>r.maxX||y<r.minY||o.y>r.maxY),f=!(v<r.minX||n.x>r.maxX||k<r.minY||n.y>r.maxY);if(!g&&!f)continue}const i=o.x+this.config.NODE_WIDTH,c=o.y+this.config.HEADER_HEIGHT+(s.sourceSlot+.5)*24,l=n.x,u=n.y+this.config.HEADER_HEIGHT+(s.targetSlot+.5)*24,p=s.id===a;this.ctx.lineWidth=p?4:3,this.ctx.strokeStyle=p?"#4ade80":"#4a9eff",this.drawBezierCurve(i,c,l,u)}}drawTempConnection(e,t,a,r){let s,o;a?(s=e.x,o=e.y+this.config.HEADER_HEIGHT+(t+.5)*24):(s=e.x+this.config.NODE_WIDTH,o=e.y+this.config.HEADER_HEIGHT+(t+.5)*24),this.ctx.strokeStyle="#4a9eff",this.ctx.setLineDash([5,5]),this.drawBezierCurve(s,o,r[0],r[1]),this.ctx.setLineDash([])}drawSelectionBox(e){const[t,a,r,s]=e;this.ctx.fillStyle="rgba(74, 158, 255, 0.1)",this.ctx.fillRect(t,a,r,s),this.ctx.strokeStyle="#4a9eff",this.ctx.lineWidth=2,this.ctx.setLineDash([5,5]),this.ctx.strokeRect(t,a,r,s),this.ctx.setLineDash([])}drawNode(e,t,a,r=null,s=null){const o=a[e.type]||a.dialogue;this.ctx.save(),t&&(this.ctx.shadowColor="rgba(74, 158, 255, 0.5)",this.ctx.shadowBlur=15,this.ctx.shadowOffsetX=0,this.ctx.shadowOffsetY=4),this.ctx.fillStyle=t?"#1e1e1f":"#171718",this.roundRect(e.x,e.y,this.config.NODE_WIDTH,this.config.NODE_HEIGHT,this.config.NODE_RADIUS),this.ctx.fill(),this.ctx.shadowColor="transparent",this.ctx.shadowBlur=0,this.ctx.shadowOffsetX=0,this.ctx.shadowOffsetY=0,this.ctx.strokeStyle=t?"#4a9eff":"#3a3a3c",this.ctx.lineWidth=t?2.5:1,this.ctx.stroke(),this.ctx.fillStyle=o.color,this.roundRect(e.x,e.y,this.config.NODE_WIDTH,this.config.HEADER_HEIGHT,[this.config.NODE_RADIUS,this.config.NODE_RADIUS,0,0]),this.ctx.fill(),this.ctx.restore(),this.drawNodeId(e,t),this.ctx.fillStyle="#000000",this.ctx.font="bold 14px sans-serif",this.ctx.fillText(o.icon+" "+o.label,e.x+10,e.y+22),this.drawNodeContent(e),this.drawSlots(e,r,s)}drawNodeId(e,t){const a=e.id,r=50,s=20,o=4;this.ctx.fillStyle=t?"#4a9eff":"#3a3a3c",this.ctx.beginPath(),this.ctx.roundRect(e.x+o,e.y-s/2,r,s,4),this.ctx.fill(),this.ctx.fillStyle="#ffffff",this.ctx.font="bold 12px monospace",this.ctx.textAlign="center",this.ctx.textBaseline="middle",this.ctx.fillText(a,e.x+o+r/2,e.y),this.ctx.textAlign="left",this.ctx.textBaseline="alphabetic"}drawNodeContent(e){const t=e.y+this.config.HEADER_HEIGHT+10,a=18,r=this.config.NODE_WIDTH-20;switch(this.ctx.font="12px sans-serif",this.ctx.textAlign="left",e.type){case"start":this.ctx.fillStyle="#a1a1aa",this.ctx.fillText(`标题: ${e.data.title}`,e.x+10,t),this.ctx.fillText(`作者: ${e.data.author}`,e.x+10,t+a),this.ctx.fillText(`版本: ${e.data.version}`,e.x+10,t+a*2);break;case"dialogue":this.ctx.fillStyle="#a1a1aa",this.ctx.fillText(`角色: ${e.data.character}`,e.x+10,t),this.ctx.fillText(`表情: ${e.data.expression||"无"}`,e.x+10,t+a),this.ctx.fillStyle="#ffffff";const s=this.truncateText(e.data.text,r);this.ctx.fillText(s,e.x+10,t+a*2),this.ctx.fillStyle="#6b7280",this.ctx.fillText(`速度: ${e.data.typingSpeed}ms`,e.x+10,t+a*3);break;case"branch":this.ctx.fillStyle="#a1a1aa",e.data.options.forEach((i,c)=>{if(c<3){const l=`选项 ${c+1}: ${this.truncateText(i.text,r-40)}`;this.ctx.fillText(l,e.x+10,t+c*a)}});break;case"scene":this.ctx.fillStyle="#a1a1aa",this.ctx.fillText(`背景: ${e.data.backgroundName||"未选择"}`,e.x+10,t),this.ctx.fillText(`转场: ${e.data.transition}`,e.x+10,t+a),this.ctx.fillText(`时长: ${e.data.duration}ms`,e.x+10,t+a*2);break;case"character":this.ctx.fillStyle="#a1a1aa",this.ctx.fillText(`角色: ${e.data.characterId}`,e.x+10,t);const o=e.data.expressionId||e.data.expression;this.ctx.fillText(`表情: ${o||"无"}`,e.x+10,t+a),this.ctx.fillText(`动作: ${e.data.action}`,e.x+10,t+a*2);let n=e.data.positionPercent;if(n===void 0&&e.data.position)switch(e.data.position){case"left":n=0;break;case"center":n=50;break;case"right":n=100;break;default:n=50}this.ctx.fillText(`位置: ${n??50}%`,e.x+10,t+a*3);break;case"audio":this.ctx.fillStyle="#a1a1aa",this.ctx.fillText(`音频: ${e.data.audioId}`,e.x+10,t),this.ctx.fillText("类型: 背景音乐",e.x+10,t+a),this.ctx.fillText(`循环: ${e.data.loop?"是":"否"}`,e.x+10,t+a*2);break;case"sfx":this.ctx.fillStyle="#a1a1aa",this.ctx.fillText(`音效: ${e.data.sfxId}`,e.x+10,t),this.ctx.fillText(`音量: ${e.data.volume||100}`,e.x+10,t+a);break;case"variable":this.ctx.fillStyle="#a1a1aa",this.ctx.fillText(`变量: ${e.data.variable}`,e.x+10,t),this.ctx.fillText(`操作: ${e.data.operation}`,e.x+10,t+a),this.ctx.fillText(`值: ${e.data.value}`,e.x+10,t+a*2);break;case"condition":this.ctx.fillStyle="#a1a1aa",this.ctx.fillText(`${e.data.variable} ${e.data.operator} ${e.data.value}`,e.x+10,t),this.ctx.fillStyle="#4ade80",this.ctx.fillText("✓ 为真",e.x+10,t+a*2),this.ctx.fillStyle="#f87171",this.ctx.fillText("✗ 为假",e.x+150,t+a*2);break;case"jump":this.ctx.fillStyle="#a1a1aa",this.ctx.fillText("跳转至:",e.x+10,t),this.ctx.fillStyle="#4a9eff",this.ctx.font="bold 12px monospace",this.ctx.fillText(e.data.target||"(未设置)",e.x+60,t),this.ctx.fillStyle="#a1a1aa",this.ctx.font="12px sans-serif",this.ctx.fillText(`类型: ${e.data.type}`,e.x+10,t+a);break;case"ending":this.ctx.fillStyle="#a1a1aa",this.ctx.fillText(`结局: ${e.data.endingId}`,e.x+10,t),this.ctx.fillText(`标题: ${e.data.title}`,e.x+10,t+a),this.ctx.fillText(`解锁: ${e.data.unlockImage||"无"}`,e.x+10,t+a*2);break;case"html":this.ctx.fillStyle="#a1a1aa",this.ctx.fillText(`ID: ${e.data.id||"未设置"}`,e.x+10,t),this.ctx.fillText(`图层: ${e.data.layerPosition==="above-character"?"上方":"下方"}`,e.x+10,t+a),this.ctx.fillStyle=e.data.visible!==!1?"#4ade80":"#f87171",this.ctx.fillText(`状态: ${e.data.visible!==!1?"显示":"隐藏"}`,e.x+10,t+a*2);break;default:this.ctx.fillStyle="#a1a1aa",this.ctx.fillText("无内容",e.x+10,t)}}drawSlots(e,t=null,a=null){if(e.inputs&&e.inputs.length>0)for(let r=0;r<e.inputs.length;r++){const s=e.y+this.config.HEADER_HEIGHT+(r+.5)*24,o=e.x,n=t&&t.nodeId===e.id&&t.slotIndex===r&&t.isInput,i=a&&a.nodeId===e.id&&a.slotIndex===r&&a.isInput;this.ctx.fillStyle=i||n?"#4ade80":"#4a9eff";const c=this.config.SLOT_RADIUS*(i||n?1.5:1);this.ctx.beginPath(),this.ctx.arc(o,s,c,0,Math.PI*2),this.ctx.fill()}if(e.outputs&&e.outputs.length>0)for(let r=0;r<e.outputs.length;r++){const s=e.y+this.config.HEADER_HEIGHT+(r+.5)*24,o=e.x+this.config.NODE_WIDTH,n=t&&t.nodeId===e.id&&t.slotIndex===r&&!t.isInput,i=a&&a.nodeId===e.id&&a.slotIndex===r&&!a.isInput;this.ctx.fillStyle=i||n?"#4ade80":"#4a9eff";const c=this.config.SLOT_RADIUS*(i||n?1.5:1);this.ctx.beginPath(),this.ctx.arc(o,s,c,0,Math.PI*2),this.ctx.fill()}}roundRect(e,t,a,r,s){const o=Array.isArray(s)?s:[s,s,s,s],[n,i,c,l]=o;this.ctx.beginPath(),this.ctx.moveTo(e+n,t),this.ctx.lineTo(e+a-i,t),this.ctx.quadraticCurveTo(e+a,t,e+a,t+i),this.ctx.lineTo(e+a,t+r-c),this.ctx.quadraticCurveTo(e+a,t+r,e+a-c,t+r),this.ctx.lineTo(e+l,t+r),this.ctx.quadraticCurveTo(e,t+r,e,t+r-l),this.ctx.lineTo(e,t+n),this.ctx.quadraticCurveTo(e,t,e+n,t),this.ctx.closePath()}drawBezierCurve(e,t,a,r){const s=e+Math.abs(a-e)*.5,o=t,n=a-Math.abs(a-e)*.5,i=r;this.ctx.beginPath(),this.ctx.moveTo(e,t),this.ctx.bezierCurveTo(s,o,n,i,a,r),this.ctx.stroke()}truncateText(e,t){if(this.ctx.font="12px sans-serif",this.ctx.measureText(e).width<=t)return e;let a=e;for(;this.ctx.measureText(a+"...").width>t&&a.length>0;)a=a.slice(0,-1);return a+"..."}}function z(h){let e=null;return{schedule:()=>{e==null&&(e=requestAnimationFrame(()=>{e=null,h()}))},cancel:()=>{e!=null&&(cancelAnimationFrame(e),e=null)},flush:()=>{e!=null&&(cancelAnimationFrame(e),e=null,h())},isScheduled:()=>e!=null}}class q{constructor(e,t){d(this,"canvas");d(this,"ctx");d(this,"stateManager");d(this,"renderer");d(this,"nodeFactory");d(this,"renderBatch");d(this,"dirty",!1);d(this,"isRendering",!1);this.canvas=e,this.ctx=e.getContext("2d"),this.stateManager=t,this.renderer=new _(this.ctx),this.nodeFactory=new N,this.renderBatch=z(()=>{this.dirty&&(this.performRender(),this.dirty=!1)})}setupCanvas(){const e=()=>{var a;const t=(a=this.canvas.parentElement)==null?void 0:a.getBoundingClientRect();t&&(this.canvas.width=t.width*window.devicePixelRatio,this.canvas.height=t.height*window.devicePixelRatio,this.ctx.scale(window.devicePixelRatio,window.devicePixelRatio),this.render())};window.addEventListener("resize",e),e()}render(){this.isRendering||this.dirty||(this.dirty=!0,this.renderBatch.schedule())}performRender(){if(this.isRendering)return;this.isRendering=!0;const e=this.canvas.getBoundingClientRect(),t=e.width,a=e.height;this.renderer.clear(t,a);const r=this.stateManager.getOffset(),s=this.stateManager.getScale();this.renderer.drawGrid(t,a,r,s),this.ctx.save(),this.ctx.translate(r[0],r[1]),this.ctx.scale(s,s);const o=this.calculateVisibleBounds(t,a,r,s),n=this.stateManager.getConnections(),i=this.stateManager.getNodes(),c=this.stateManager.getHoverState();this.renderer.drawConnections(n,i,c.hoveredConnection,o),this.drawNodes(c,o),this.drawTempConnection(),this.drawSelectionBox(),this.ctx.restore(),this.isRendering=!1}calculateVisibleBounds(e,t,a,r){const s={x:-a[0]/r,y:-a[1]/r},o={x:(e-a[0])/r,y:(t-a[1])/r},n=100;return{minX:s.x-n,minY:s.y-n,maxX:o.x+n,maxY:o.y+n}}isNodeVisible(e,t){const a=this.renderer.getConfig(),r=e.x+a.NODE_WIDTH,s=e.y+a.NODE_HEIGHT;return!(r<t.minX||e.x>t.maxX||s<t.minY||e.y>t.maxY)}drawNodes(e,t){const a=Array.from(this.stateManager.getNodes().values()),r=this.stateManager.getSelectedNodes(),s=this.nodeFactory.getAllNodeTypeConfigs(),o=this.stateManager.getDragState();a.filter(c=>!r.has(c.id)).forEach(c=>{this.isNodeVisible(c,t)&&this.renderer.drawNode(c,!1,s,e.hoveredSlot,o.connectionTargetSlot)}),a.filter(c=>r.has(c.id)).forEach(c=>{this.renderer.drawNode(c,!0,s,e.hoveredSlot,o.connectionTargetSlot)})}drawTempConnection(){const e=this.stateManager.getDragState();if(e.isDraggingConnection&&e.connectionStart&&e.connectionEnd){const t=this.stateManager.getNode(e.connectionStart.nodeId);t&&this.renderer.drawTempConnection(t,e.connectionStart.slotIndex,e.connectionStart.isInput,e.connectionEnd)}}drawSelectionBox(){const e=this.stateManager.getSelectionBox();e&&this.renderer.drawSelectionBox(e)}}class F{constructor(e,t,a,r){d(this,"stateManager");d(this,"canvas");d(this,"onRenderRequested");d(this,"onNodeDoubleClicked");this.stateManager=e,this.canvas=a,this.onRenderRequested=r.onRenderRequested,this.onNodeDoubleClicked=r.onNodeDoubleClicked,this.setupEventListeners()}screenToGraph(e,t){const a=this.stateManager.getOffset(),r=this.stateManager.getScale();return[(e-a[0])/r,(t-a[1])/r]}setupEventListeners(){this.canvas.addEventListener("mousedown",this.handleMouseDown.bind(this)),this.canvas.addEventListener("dblclick",this.handleDoubleClick.bind(this)),window.addEventListener("mousemove",this.handleMouseMove.bind(this)),window.addEventListener("mouseup",this.handleMouseUp.bind(this)),this.canvas.addEventListener("wheel",this.handleWheel.bind(this),{passive:!1}),document.addEventListener("keydown",this.handleKeyDown.bind(this))}handleMouseDown(e){const t=this.canvas.getBoundingClientRect(),a=[e.clientX-t.left,e.clientY-t.top],r=this.screenToGraph(a[0],a[1]),s=a,o=this.hitTestSlot(r[0],r[1]);if(o){const i=this.stateManager.getConnectionToSlot(o.nodeId,o.slotIndex,o.isInput);let c=o;o.isInput&&i&&(this.stateManager.deleteConnection(i.id),console.log(`✓ 断开连接: ${i.sourceId} → ${i.targetId}`),c={nodeId:i.sourceId,slotIndex:i.sourceSlot,isInput:!1}),this.stateManager.updateDragState({isDraggingConnection:!0,connectionStart:c,connectionEnd:r,dragStart:s}),this.onRenderRequested();return}const n=this.hitTestNode(r[0],r[1]);if(n){const i=this.stateManager.getNode(n);if(i){e.ctrlKey||e.metaKey?this.stateManager.getSelectedNodes().has(n)?this.stateManager.removeSelectedNode(n):this.stateManager.addSelectedNode(n):e.shiftKey?this.stateManager.addSelectedNode(n):this.stateManager.getSelectedNodes().has(n)||(this.stateManager.clearSelectedNodes(),this.stateManager.addSelectedNode(n)),this.stateManager.updateDragState({isDraggingNode:!0,dragOffset:[i.x-r[0],i.y-r[1]],dragNodeStartPositions:null,dragStartMouse:a,dragStart:s}),this.onRenderRequested();return}}e.shiftKey||e.ctrlKey||e.metaKey?(this.stateManager.updateDragState({isBoxSelecting:!0,dragStartGraph:r}),this.stateManager.setSelectionBox([r[0],r[1],0,0]),this.onRenderRequested()):(this.stateManager.updateDragState({isDraggingCanvas:!0,dragStart:s}),this.stateManager.clearSelectedNodes(),this.stateManager.clearSelectedConnections(),this.onRenderRequested())}handleMouseMove(e){const t=this.canvas.getBoundingClientRect(),a=[e.clientX-t.left,e.clientY-t.top],r=this.screenToGraph(a[0],a[1]),s=this.stateManager.getDragState();if(s.isDraggingConnection&&s.connectionStart){const c=this.hitTestSlot(r[0],r[1]);let l=null;c&&s.connectionStart.isInput!==c.isInput&&c.nodeId!==s.connectionStart.nodeId&&(l=c),this.stateManager.updateDragState({connectionEnd:r,connectionTargetSlot:l}),this.onRenderRequested();return}if(s.isDraggingNode){this.handleNodeDragging(a,s),this.onRenderRequested();return}if(s.isBoxSelecting){this.handleBoxSelecting(r,s,e.shiftKey),this.onRenderRequested();return}if(s.isDraggingCanvas){const c=a[0]-s.dragStart[0],l=a[1]-s.dragStart[1];this.stateManager.updateOffset(c,l),this.stateManager.updateDragState({dragStart:a}),this.onRenderRequested();return}const o=this.hitTestSlot(r[0],r[1]),n=o?o.nodeId:this.hitTestNode(r[0],r[1]),i=this.hitTestConnection(r[0],r[1]);this.stateManager.updateHoverState({hoveredNode:n,hoveredSlot:o,hoveredConnection:i}),this.onRenderRequested()}handleNodeDragging(e,t){const a=this.stateManager.getScale(),r=this.stateManager.getSelectedNodes();if(!t.dragNodeStartPositions){const c=new Map;r.forEach(l=>{const u=this.stateManager.getNode(l);u&&c.set(l,{x:u.x,y:u.y})}),this.stateManager.updateDragState({dragNodeStartPositions:c})}const s=[e[0]-t.dragStartMouse[0],e[1]-t.dragStartMouse[1]],o=[s[0]/a,s[1]/a],n=20,i=[Math.round(o[0]/n)*n,Math.round(o[1]/n)*n];r.forEach(c=>{var p;const l=this.stateManager.getNode(c),u=(p=t.dragNodeStartPositions)==null?void 0:p.get(c);l&&u&&(l.x=u.x+i[0],l.y=u.y+i[1])})}handleBoxSelecting(e,t,a){const r=t.dragStartGraph,s=e[0]-r[0],o=e[1]-r[1];this.stateManager.setSelectionBox([Math.min(r[0],e[0]),Math.min(r[1],e[1]),Math.abs(s),Math.abs(o)]),this.selectNodesInBox(this.stateManager.getSelectionBox(),a)}handleMouseUp(e){const t=this.stateManager.getDragState();if(t.isDraggingConnection&&t.connectionStart&&t.connectionEnd){const a=this.canvas.getBoundingClientRect(),r=[e.clientX-a.left,e.clientY-a.top],s=this.screenToGraph(r[0],r[1]),o=this.hitTestSlot(s[0],s[1]);o&&o.nodeId!==t.connectionStart.nodeId&&this.createConnection(t.connectionStart,o)}this.stateManager.updateDragState({isDraggingCanvas:!1,isDraggingNode:!1,isDraggingConnection:!1,isBoxSelecting:!1,connectionStart:null,connectionEnd:null,connectionTargetSlot:null,dragNodeStartPositions:null,dragStartMouse:null}),this.stateManager.setSelectionBox(null),this.onRenderRequested()}createConnection(e,t){let a,r;if(!e.isInput&&t.isInput)a=e,r=t;else if(e.isInput&&!t.isInput)a=t,r=e;else return;const s=this.stateManager.getConnections(),o=s.findIndex(i=>i.targetId===r.nodeId&&i.targetSlot===r.slotIndex);o!==-1&&s.splice(o,1),s.some(i=>i.sourceId===a.nodeId&&i.targetId===r.nodeId)||(this.stateManager.addConnection({id:`conn_${Date.now()}_${Math.random().toString(36).slice(2,11)}`,sourceId:a.nodeId,sourceSlot:a.slotIndex,targetId:r.nodeId,targetSlot:r.slotIndex}),console.log(`✓ 创建连接: ${a.nodeId} → ${r.nodeId}`))}handleWheel(e){e.preventDefault();const t=this.canvas.getBoundingClientRect(),a=e.clientX-t.left,r=e.clientY-t.top,s=this.stateManager.getScale(),o=e.deltaY<0?1.1:.9,n=Math.max(.25,Math.min(3,s*o)),i=this.stateManager.getOffset();i[0]=a-(a-i[0])*(n/s),i[1]=r-(r-i[1])*(n/s),this.stateManager.setScale(n),this.stateManager.setOffset(i),this.onRenderRequested()}handleKeyDown(e){const t=e.target,a=e.key.toLowerCase();(e.key==="Delete"||e.key==="Backspace")&&t.tagName!=="INPUT"&&t.tagName!=="TEXTAREA"&&(this.deleteSelected(),e.preventDefault()),(e.ctrlKey||e.metaKey)&&a==="c"&&!e.shiftKey&&t.tagName!=="INPUT"&&t.tagName!=="TEXTAREA"&&(this.copySelectedNodes(),e.preventDefault()),(e.ctrlKey||e.metaKey)&&a==="v"&&!e.shiftKey&&t.tagName!=="INPUT"&&t.tagName!=="TEXTAREA"&&(this.pasteNodes(),e.preventDefault()),(e.ctrlKey||e.metaKey)&&a==="a"&&t.tagName!=="INPUT"&&t.tagName!=="TEXTAREA"&&(this.selectAllNodes(),e.preventDefault()),e.ctrlKey&&a==="s"&&e.preventDefault(),e.key==="Escape"&&(this.stateManager.clearSelectedNodes(),this.stateManager.clearSelectedConnections(),this.onRenderRequested())}handleDoubleClick(e){const t=this.canvas.getBoundingClientRect(),a=[e.clientX-t.left,e.clientY-t.top],r=this.screenToGraph(a[0],a[1]),s=this.hitTestNode(r[0],r[1]);if(s){const o=this.stateManager.getNode(s);o&&this.onNodeDoubleClicked(o)}}deleteSelected(){this.stateManager.getSelectedNodes().forEach(a=>{this.stateManager.deleteNode(a),this.stateManager.setConnections(this.stateManager.getConnections().filter(r=>r.sourceId!==a&&r.targetId!==a))}),this.stateManager.clearSelectedNodes();const t=this.stateManager.getSelectedConnections();this.stateManager.setConnections(this.stateManager.getConnections().filter(a=>!t.has(a.id))),this.stateManager.clearSelectedConnections(),this.onRenderRequested()}selectAllNodes(){this.stateManager.clearSelectedNodes(),this.stateManager.getNodes().forEach((t,a)=>{this.stateManager.addSelectedNode(a)}),this.onRenderRequested(),console.log(`✓ 已选中 ${this.stateManager.getSelectedNodes().size} 个节点`)}selectNodesInBox(e,t){const[a,r,s,o]=e,n=this.stateManager.getNodes();t||this.stateManager.clearSelectedNodes(),n.forEach((i,c)=>{i.x>=a&&i.x+200<=a+s&&i.y>=r&&i.y+120<=r+o&&this.stateManager.addSelectedNode(c)})}copySelectedNodes(){const e=this.stateManager.getSelectedNodes();if(e.size===0){console.log("⚠️ 没有选中节点");return}const t=this.stateManager.getNodes(),a=this.stateManager.getConnections(),r=Array.from(e).map(o=>{const n=t.get(o);if(!n)throw new Error(`节点 ${o} 不存在`);return{...n,data:JSON.parse(JSON.stringify(n.data))}}),s=a.filter(o=>e.has(o.sourceId)&&e.has(o.targetId));this.stateManager.setClipboard({nodes:r,connections:s}),console.log(`✓ 已复制 ${r.length} 个节点和 ${s.length} 条连接`)}pasteNodes(){const e=this.stateManager.getClipboard();if(!e||e.nodes.length===0){console.log("⚠️ 剪贴板为空");return}const t={},a=200,r=120,s=this.stateManager.getSelectedNodes(),o=this.stateManager.getNodes();let n=-1/0,i=-1/0;s.forEach(g=>{const f=o.get(g);f&&(n=Math.max(n,f.x+a),i=Math.max(i,f.y+r))});const c=this.canvas.getBoundingClientRect();if(s.size===0||n===-1/0){const g=this.stateManager.getOffset(),f=this.stateManager.getScale();n=(c.width/2-g[0])/f-100,i=(c.height/2-g[1])/f-60}const l=e.nodes,u=l.reduce((g,f)=>Math.min(g,f.x),1/0),p=l.reduce((g,f)=>Math.min(g,f.y),1/0),b=n-u+20,y=i-p+20;this.stateManager.clearSelectedNodes();const v=[];for(const g of l){const f=this.stateManager.getNextNodeId();t[g.id]=f;const w={...g,id:f,x:g.x+b,y:g.y+y,data:JSON.parse(JSON.stringify(g.data))};this.stateManager.setNode(f,w),v.push(w),this.stateManager.addSelectedNode(f)}const k=this.stateManager.getConnections();for(const g of e.connections){const f=t[g.sourceId],w=t[g.targetId];if(f&&w){const $={id:`conn_${Date.now()}_${Math.random().toString(36).slice(2,11)}`,sourceId:f,sourceSlot:g.sourceSlot,targetId:w,targetSlot:g.targetSlot};k.push($)}}this.onRenderRequested(),console.log(`✓ 已粘贴 ${v.length} 个节点和 ${e.connections.length} 条连接`)}hitTestNode(e,t){const s=this.stateManager.getNodes(),o=Array.from(s.entries()).reverse();for(const[n,i]of o)if(e>=i.x&&e<=i.x+200&&t>=i.y&&t<=i.y+120)return n;return null}hitTestSlot(e,t){const o=this.stateManager.getNodes();for(const[n,i]of Array.from(o.entries())){if(i.inputs&&i.inputs.length>0)for(let c=0;c<i.inputs.length;c++){const l=i.y+35+(c+.5)*24,u=i.x;if(Math.sqrt((e-u)**2+(t-l)**2)<=6*1.5)return{nodeId:n,slotIndex:c,isInput:!0}}if(i.outputs&&i.outputs.length>0)for(let c=0;c<i.outputs.length;c++){const l=i.y+35+(c+.5)*24,u=i.x+200;if(Math.sqrt((e-u)**2+(t-l)**2)<=6*1.5)return{nodeId:n,slotIndex:c,isInput:!1}}}return null}hitTestConnection(e,t){const a=this.stateManager.getConnections(),r=this.stateManager.getNodes(),s=35,o=200;for(const n of a){const i=r.get(n.sourceId),c=r.get(n.targetId);if(!i||!c)continue;const l=i.x+o,u=i.y+s+(n.sourceSlot+.5)*24,p=c.x,b=c.y+s+(n.targetSlot+.5)*24;if(this.pointToBezierDistance(e,t,l,u,p,b)<8)return n.id}return null}pointToBezierDistance(e,t,a,r,s,o){const n=a+Math.abs(s-a)*.5,i=r,c=s-Math.abs(s-a)*.5,l=o;let u=1/0;for(let p=0;p<=1;p+=.05){const b=(1-p)**3*a+3*(1-p)**2*p*n+3*(1-p)*p**2*c+p**3*s,y=(1-p)**3*r+3*(1-p)**2*p*i+3*(1-p)*p**2*l+p**3*o,v=Math.sqrt((e-b)**2+(t-y)**2);u=Math.min(u,v)}return u}}class j{constructor(e,t={}){d(this,"container");d(this,"title");d(this,"content");d(this,"footer");d(this,"properties",[]);d(this,"onPropertyChange");this.container=document.createElement("div"),this.container.className="property-panel",this.container.innerHTML=`
+      <div class="property-panel-header">
+        <span class="property-panel-title"></span>
+        ${t.closable?'<span class="property-panel-close">&times;</span>':""}
+      </div>
+      <div class="property-panel-content"></div>
+      <div class="property-panel-footer">
+        <button class="property-panel-btn property-panel-btn-save">保存</button>
+        <button class="property-panel-btn property-panel-btn-cancel">取消</button>
+      </div>
+    `,t.width&&(this.container.style.width=`${t.width}px`),t.height&&(this.container.style.height=`${t.height}px`),this.title=this.container.querySelector(".property-panel-title"),this.content=this.container.querySelector(".property-panel-content"),this.footer=this.container.querySelector(".property-panel-footer"),this.setupEventListeners(t),e.appendChild(this.container),this.onPropertyChange=t.onPropertyChange}setupEventListeners(e){var s;const t=this.container.querySelector(".property-panel-close");t&&t.addEventListener("click",()=>{var o;(o=e.onClose)==null||o.call(e),this.destroy()}),this.footer.querySelector(".property-panel-btn-save").addEventListener("click",()=>{var o;this.saveChanges(),(o=e.onClose)==null||o.call(e),this.destroy()}),this.footer.querySelector(".property-panel-btn-cancel").addEventListener("click",()=>{var o;(o=e.onClose)==null||o.call(e),this.destroy()}),(s=e.onOpen)==null||s.call(e)}setTitle(e){this.title.textContent=e}addProperty(e){this.properties.push(e),this.renderProperty(e)}addButton(e){this.renderButton(e)}updatePropertyVisibility(e,t){const a=this.content.querySelector(`.property-row[data-property-name="${e}"]`);a&&(a.style.display=t?"":"none")}updatePropertyLabel(e,t){const a=this.content.querySelector(`.property-row[data-property-name="${e}"] .property-label`);a&&(a.textContent=t)}renderButton(e){const t=document.createElement("div");t.className="property-button-row",t.style.marginTop="8px";const a=document.createElement("button");a.className=`property-panel-btn property-panel-btn-${e.style||"secondary"}`,a.textContent=e.label,a.addEventListener("click",e.onClick),t.appendChild(a),this.content.appendChild(t)}renderProperty(e){const t=document.createElement("div");t.className="property-row",t.dataset.propertyName=e.name,e.visible===!1&&(t.style.display="none");const a=document.createElement("label");a.className="property-label",a.textContent=e.dynamicLabel?e.dynamicLabel(e.value):e.label,t.appendChild(a);const r=this.createInput(e);t.appendChild(r),this.content.appendChild(t)}createInput(e){switch(e.type){case"string":return this.createStringInput(e);case"number":return this.createNumberInput(e);case"boolean":return this.createBooleanInput(e);case"combo":return this.createComboInput(e);case"textarea":return this.createTextArea(e);case"file":return this.createFileInput(e);case"character":return this.createCharacterSelector(e);case"expression":return this.createExpressionSelector(e);case"resource":return this.createResourceSelector(e);case"character-combo":return this.createCharacterComboInput(e);case"range":return this.createRangeInput(e);default:return this.createStringInput(e)}}createStringInput(e){var a;const t=document.createElement("input");return t.type="text",t.className="property-input property-input-string",t.value=String(e.value||""),t.placeholder=((a=e.options)==null?void 0:a.placeholder)||"",t.dataset.propertyName=e.name,t.addEventListener("input",()=>{const r=t.parentElement;r.dataset.changed="true"}),t.addEventListener("keydown",r=>{r.key==="Enter"&&(r.preventDefault(),t.blur())}),t}createNumberInput(e){var a,r,s;const t=document.createElement("input");return t.type="number",t.className="property-input property-input-number",t.value=String(e.value||0),t.dataset.propertyName=e.name,((a=e.options)==null?void 0:a.min)!==void 0&&(t.min=String(e.options.min)),((r=e.options)==null?void 0:r.max)!==void 0&&(t.max=String(e.options.max)),((s=e.options)==null?void 0:s.step)!==void 0&&(t.step=String(e.options.step)),t.addEventListener("input",()=>{const o=t.parentElement;o.dataset.changed="true"}),t}createBooleanInput(e){const t=document.createElement("div");t.className="property-input property-input-boolean",t.dataset.propertyName=e.name;const a=document.createElement("input");a.type="checkbox",a.checked=!!e.value,a.className="property-checkbox",a.dataset.propertyName=e.name;const r=document.createElement("label");return r.className="property-checkbox-label",r.textContent=a.checked?"是":"否",a.addEventListener("change",()=>{r.textContent=a.checked?"是":"否";const s=t.parentElement;s.dataset.changed="true"}),t.appendChild(a),t.appendChild(r),t}createComboInput(e){var r;const t=document.createElement("select");return t.className="property-input property-input-combo",t.dataset.propertyName=e.name,(((r=e.options)==null?void 0:r.values)||[]).forEach(s=>{const o=document.createElement("option");o.value=s,o.textContent=s,o.selected=s===e.value,t.appendChild(o)}),t.addEventListener("change",()=>{var o;const s=t.parentElement;s.dataset.changed="true",(o=this.onPropertyChange)==null||o.call(this,e.name,t.value)}),t}createRangeInput(e){var s,o,n;const t=document.createElement("div");t.className="property-input property-input-range-wrapper",t.dataset.propertyName=e.name;const a=document.createElement("input");a.type="range",a.className="property-range",a.dataset.propertyName=e.name,a.min=String(((s=e.options)==null?void 0:s.min)||0),a.max=String(((o=e.options)==null?void 0:o.max)||100),a.step=String(((n=e.options)==null?void 0:n.step)||1),a.value=String(e.value||50);const r=document.createElement("span");return r.className="property-range-percent",r.textContent=`${a.value}%`,r.style.minWidth="40px",a.addEventListener("input",()=>{var c;r.textContent=`${a.value}%`;const i=a.parentElement;i.dataset.changed="true",(c=this.onPropertyChange)==null||c.call(this,e.name,parseInt(a.value))}),t.appendChild(a),t.appendChild(r),t}createTextArea(e){var a;const t=document.createElement("textarea");return t.className="property-input property-input-textarea",t.value=String(e.value||""),t.placeholder=((a=e.options)==null?void 0:a.placeholder)||"",t.rows=4,t.dataset.propertyName=e.name,t.addEventListener("input",()=>{const r=t.parentElement;r.dataset.changed="true"}),t}createFileInput(e){var o,n,i;const t=document.createElement("div");t.className="property-input property-input-file",t.dataset.propertyName=e.name;const a=document.createElement("input");a.type="text",a.className="property-input property-input-string",a.value=String(e.value||""),a.placeholder=((o=e.options)==null?void 0:o.placeholder)||"未选择文件",a.readOnly=!0,a.dataset.displayName="true";const r=document.createElement("button");r.type="button",r.className="property-file-button",r.textContent=((n=e.options)==null?void 0:n.fileLabel)||"选择文件";const s=document.createElement("input");return s.type="file",s.style.display="none",s.accept=((i=e.options)==null?void 0:i.accept)||"*",r.addEventListener("click",()=>{s.click()}),s.addEventListener("change",async c=>{const l=c.target.files;if(l&&l.length>0){const u=l[0];a.value=u.name;const p=t.parentElement;if(p.dataset.changed="true",p.dataset.fileName=u.name,e.onFileSelected)try{await e.onFileSelected(u)}catch(b){console.error("文件处理失败:",b),alert(`文件处理失败: ${b}`)}}}),t.appendChild(a),t.appendChild(r),t.appendChild(s),t}createCharacterSelector(e){const t=document.createElement("div");t.className="property-input property-input-character",t.dataset.propertyName=e.name;const a=document.createElement("input");a.type="text",a.className="property-input property-input-string",a.value=String(e.value||""),a.placeholder="选择角色",a.readOnly=!0,a.dataset.displayName="true",a.dataset.propertyName=e.name;const r=document.createElement("button");return r.type="button",r.className="property-file-button",r.textContent="选择角色",r.addEventListener("click",()=>{const s=new CustomEvent("openCharacterSelector",{detail:{propertyName:e.name,currentValue:e.value},bubbles:!0,composed:!0});this.container.dispatchEvent(s)}),t.appendChild(a),t.appendChild(r),t}createExpressionSelector(e){const t=document.createElement("div");t.className="property-input property-input-expression",t.dataset.propertyName=e.name;const a=document.createElement("input");a.type="text",a.className="property-input property-input-string",a.value=String(e.value||""),a.placeholder="选择表情",a.readOnly=!0,a.dataset.displayName="true",a.dataset.propertyName=e.name;const r=document.createElement("button");return r.type="button",r.className="property-file-button",r.textContent="选择表情",r.addEventListener("click",()=>{const s=new CustomEvent("openExpressionSelector",{detail:{propertyName:e.name,currentValue:e.value},bubbles:!0,composed:!0});this.container.dispatchEvent(s)}),t.appendChild(a),t.appendChild(r),t}createResourceSelector(e){var i,c;const t=document.createElement("div");t.className="property-input property-input-resource",t.dataset.propertyName=e.name;const a=document.createElement("input");a.type="text",a.className="property-input property-input-string",a.value=String(e.value||""),a.placeholder="选择资源",a.readOnly=!0,a.dataset.displayName="true",a.dataset.propertyName=e.name;const r=document.createElement("span");r.className="property-resource-type",r.textContent=((i=e.options)==null?void 0:i.resourceType)||"";const s=document.createElement("button");s.type="button",s.className="property-file-button";const o=((c=e.options)==null?void 0:c.resourceType)||"",n={background:"选择背景",bgm:"选择音乐",sfx:"选择音效",voice:"选择语音",ending:"选择解锁图片"};return s.textContent=n[o]||"选择资源",s.addEventListener("click",()=>{const l=new CustomEvent("openResourceSelector",{detail:{propertyName:e.name,currentValue:e.value,resourceType:o},bubbles:!0,composed:!0});this.container.dispatchEvent(l)}),t.appendChild(a),o&&t.appendChild(r),t.appendChild(s),t}createCharacterComboInput(e){var i;const t=document.createElement("div");t.className="property-input property-input-character-combo",t.dataset.propertyName=e.name;const a=document.createElement("select");a.className="property-input property-input-combo property-combo-select",a.style.marginBottom="8px",a.style.width="100%";const r=((i=e.options)==null?void 0:i.values)||[],s=String(e.value||"");r.forEach(c=>{const l=document.createElement("option");l.value=c,l.textContent=c,a.appendChild(l)});const o=document.createElement("option");o.value="--- 自定义 ---",o.textContent="--- 自定义 ---",a.appendChild(o),r.includes(s)?a.value=s:o.selected=!0;const n=document.createElement("input");return n.type="text",n.className="property-input property-input-string property-custom-input",n.placeholder="输入自定义角色名",n.value=r.includes(s)?"":s,n.dataset.propertyName=e.name,n.disabled=a.value!=="--- 自定义 ---",a.addEventListener("change",()=>{const c=a.value==="--- 自定义 ---";n.disabled=!c;const l=t.parentElement;l.dataset.changed="true",c?n.focus():n.value=""}),n.addEventListener("input",()=>{const c=t.parentElement;c.dataset.changed="true"}),n.addEventListener("keydown",c=>{c.key==="Enter"&&(c.preventDefault(),n.blur())}),t.appendChild(a),t.appendChild(n),t}clearProperties(){this.properties=[],this.content.innerHTML=""}saveChanges(){this.content.querySelectorAll('.property-row[data-changed="true"]').forEach(t=>{var i,c;const a=t.querySelector(".property-input"),r=a.dataset.propertyName;if(!r)return;let s;const o=a.className;if(t.querySelector(".property-input-character-combo")!==null){const l=t.querySelector(".property-combo-select"),u=t.querySelector(".property-custom-input");l&&u&&(s=l.value==="--- 自定义 ---"?u.value:l.value)}else if(o.includes("property-input-string")||o.includes("property-input-textarea"))if(a.hasAttribute("data-display-name")){const l=(i=a.parentElement)==null?void 0:i.parentElement;s=(l==null?void 0:l.dataset.fileName)||a.value}else s=a.value;else if(o.includes("property-input-number")){const l=Number(a.value);s=isNaN(l)?0:l}else o.includes("property-input-boolean")?s=a.querySelector(".property-checkbox").checked:(o.includes("property-input-combo"),s=a.value);(c=this.onPropertyChange)==null||c.call(this,r,s)})}getPropertyValue(e){var a;const t=this.content.querySelector(`[data-property-name="${e}"]`);if(!t)return null;switch(t.className){case"property-input property-input-string":case"property-input property-input-textarea":case"property-input property-input-combo":if(t.hasAttribute("data-display-name")){const n=(a=t.parentElement)==null?void 0:a.parentElement;return(n==null?void 0:n.dataset.fileName)||t.value}return t.value;case"property-input property-input-number":return Number(t.value);case"property-input property-input-boolean":return t.querySelector(".property-checkbox").checked;case"property-input property-input-file":const s=t.querySelector('input[data-display-name="true"]'),o=t.parentElement;return(o==null?void 0:o.dataset.fileName)||(s==null?void 0:s.value)||"";default:return t.value}}updatePropertyValue(e,t){console.log(`[PropertyPanel] updatePropertyValue called: name=${e}, value=${t}`);const a=this.content.querySelectorAll(".property-row");console.log(`[PropertyPanel] Found ${a.length} property rows`),a.forEach(r=>{let s=r.dataset.propertyName;if(console.log(`[PropertyPanel] Row property name: ${s}`),s!==e){const n=r.querySelector(".property-input");if(!n){console.log("[PropertyPanel] No input found in row");return}if(s=n.dataset.propertyName,console.log(`[PropertyPanel] Input property name: ${s}`),s!==e)return}if(r.querySelector(".property-input-character-combo")!==null){const n=r.querySelector(".property-combo-select"),i=r.querySelector(".property-custom-input");if(n&&i){const c=String(t||"");Array.from(n.options).map(u=>u.value).includes(c)?(n.value=c,i.value="",i.disabled=!0):(n.value="--- 自定义 ---",i.value=c,i.disabled=!1)}}else{const n=r.querySelector('input[data-display-name="true"], input:not([data-display-name]), textarea, select');if(!n){console.log(`[PropertyPanel] No input element found for ${e}`);return}console.log(`[PropertyPanel] Updating input value to: ${t}`);const i=n.className;i.includes("property-input-string")||i.includes("property-input-number")||i.includes("property-input-textarea")||i.includes("property-input-combo")?n.value=String(t||""):i.includes("property-input-boolean")&&(n.checked=!!t)}})}destroy(){this.container.parentElement&&this.container.remove()}}function U(){if(document.getElementById("property-panel-styles"))return;const h=document.createElement("style");h.id="property-panel-styles",h.textContent=`
+    .property-panel {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #1e1e1e;
+      border: 1px solid #3a3a3c;
+      border-radius: 8px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      min-width: 350px;
+      max-width: 500px;
+      max-height: 80vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .property-panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid #3a3a3c;
+      background: #2a2a2a;
+      border-radius: 8px 8px 0 0;
+      flex-shrink: 0;
+    }
+
+    .property-panel-title {
+      color: #ffffff;
+      font-weight: 600;
+      font-size: 16px;
+    }
+
+    .property-panel-close {
+      color: #a1a1aa;
+      font-size: 24px;
+      cursor: pointer;
+      line-height: 1;
+      transition: color 0.2s;
+    }
+
+    .property-panel-close:hover {
+      color: #ffffff;
+    }
+
+    .property-panel-content {
+      padding: 16px;
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+    }
+
+    .property-panel-content::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .property-panel-content::-webkit-scrollbar-track {
+      background: #2a2a2a;
+    }
+
+    .property-panel-content::-webkit-scrollbar-thumb {
+      background: #4a4a4c;
+      border-radius: 4px;
+    }
+
+    .property-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+      padding: 8px;
+      background: #2a2a2a;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+
+    .property-row:hover {
+      background: #333333;
+    }
+
+    .property-row[data-changed="true"] {
+      border-left: 3px solid #4a9eff;
+    }
+
+    .property-label {
+      width: 100px;
+      color: #a1a1aa;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .property-input {
+      flex: 1;
+      padding: 8px 12px;
+      background: #171718;
+      border: 1px solid #3a3a3c;
+      border-radius: 4px;
+      color: #ffffff;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+
+    .property-input:focus {
+      outline: none;
+      border-color: #4a9eff;
+    }
+
+    .property-input-string {
+      width: 100%;
+    }
+
+    .property-input-number {
+      width: 100%;
+    }
+
+    .property-input-textarea {
+      width: 100%;
+      resize: vertical;
+      font-family: inherit;
+    }
+
+    .property-input-boolean {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .property-checkbox {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    .property-checkbox-label {
+      color: #ffffff;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .property-input-combo {
+      width: 100%;
+      cursor: pointer;
+    }
+
+    .property-input-file {
+      display: flex;
+      gap: 8px;
+      width: 100%;
+      align-items: center;
+    }
+
+    .property-input-file .property-input-string {
+      flex: 1;
+    }
+
+    .property-input-character,
+    .property-input-expression,
+    .property-input-resource,
+    .property-input-character-combo {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+      align-items: stretch;
+    }
+
+    .property-input-character .property-input-string,
+    .property-input-expression .property-input-string,
+    .property-input-resource .property-input-string {
+      flex: 1;
+    }
+
+    .property-input-character-combo .property-custom-input:disabled {
+      background: #1a1a1a;
+      color: #6b7280;
+      cursor: not-allowed;
+    }
+
+    .property-resource-type {
+      padding: 4px 8px;
+      background: #3a3a3c;
+      border-radius: 4px;
+      font-size: 12px;
+      color: #a1a1aa;
+      white-space: nowrap;
+    }
+
+    .property-file-button {
+      padding: 8px 16px;
+      background: #4a9eff;
+      color: #ffffff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      white-space: nowrap;
+      transition: background 0.2s;
+    }
+
+    .property-file-button:hover {
+      background: #3a8edf;
+    }
+
+    .property-panel-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 12px 16px;
+      border-top: 1px solid #3a3a3c;
+      background: #2a2a2a;
+      flex-shrink: 0;
+    }
+
+    .property-panel-btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .property-panel-btn-save {
+      background: #4a9eff;
+      color: #ffffff;
+    }
+
+    .property-panel-btn-save:hover {
+      background: #3a8edf;
+    }
+
+    .property-panel-btn-cancel {
+      background: #3a3a3c;
+      color: #ffffff;
+    }
+
+    .property-panel-btn-cancel:hover {
+      background: #4a4a4c;
+    }
+
+    .property-input-range-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+    }
+
+    .property-range {
+      flex: 1;
+      height: 6px;
+      background: #3a3a3c;
+      border: 1px solid #4a4a4c;
+      border-radius: 3px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .property-range:focus {
+      border-color: #4a9eff;
+    }
+
+    .property-range::-webkit-slider-thumb {
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      background: #4a9eff;
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 0 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .property-range::-moz-range-thumb {
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      background: #4a9eff;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 1px solid #ffffff;
+      box-shadow: 0 0 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .property-range::-webkit-slider-runnable-track {
+      background: #2a2a2a;
+      border-radius: 3px;
+    }
+
+    .property-range::-moz-range-track {
+      background: #2a2a2a;
+      border-radius: 3px;
+    }
+
+    .property-range-percent {
+      background: #4a4a4c;
+      color: #ffffff;
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 600;
+      min-width: 60px;
+      text-align: center;
+    }
+
+    .property-button-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .property-panel-btn-secondary {
+      background: #3a3a3c;
+      color: #ffffff;
+    }
+
+    .property-panel-btn-secondary:hover {
+      background: #4a4a4c;
+    }
+
+    .property-panel-btn-danger {
+      background: #f87171;
+      color: #ffffff;
+    }
+
+    .property-panel-btn-danger:hover {
+      background: #ef4444;
+    }
+
+    .property-button-row .property-panel-btn {
+      flex: 1;
+    }
+
+    .property-thumbnail-row {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 12px;
+      padding: 8px;
+      background: #2a2a2a;
+      border-radius: 4px;
+    }
+
+    .property-thumbnail-container {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+    }
+
+    .property-thumbnail {
+      width: 100%;
+      height: 80px;
+      background: #1a1a1a;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border: 1px solid #3a3a3c;
+    }
+
+    .property-thumbnail-placeholder {
+      color: #6b7280;
+      font-size: 14px;
+    }
+  `,document.head.appendChild(h)}U();class V{constructor(e,t,a){d(this,"stateManager");d(this,"container");d(this,"nodeFactory");d(this,"propertyPanel",null);d(this,"editingNodeId",null);d(this,"characterLibrary");this.stateManager=e,this.container=t,this.nodeFactory=new N,this.characterLibrary=a}openPropertyPanel(e){this.propertyPanel&&this.propertyPanel.destroy(),this.editingNodeId=e.id;const t=this.nodeFactory.getNodeTypeConfig(e.type);this.propertyPanel=new j(this.container,{width:400,height:500,closable:!0,onOpen:()=>{console.log(`打开属性面板: ${t.label}`)},onClose:()=>{this.editingNodeId=null,this.propertyPanel=null},onPropertyChange:(a,r)=>{this.editingNodeId&&(this.updateNodeProperty(this.editingNodeId,a,r),a==="action"&&e.type==="character"&&this.updateCharacterPropertyVisibility(r))}}),this.propertyPanel.setTitle(`${t.icon} ${t.label} - 属性编辑`),this.addPropertiesToPanel(e)}addPropertiesToPanel(e){switch(e.type){case"start":this.addPropertiesToPanel_Start(e);break;case"dialogue":this.addPropertiesToPanel_Dialogue(e);break;case"branch":this.addPropertiesToPanel_Branch(e);break;case"scene":this.addPropertiesToPanel_Scene(e);break;case"character":this.addPropertiesToPanel_Character(e);break;case"audio":this.addPropertiesToPanel_Audio(e);break;case"sfx":this.addPropertiesToPanel_Sfx(e);break;case"variable":this.addPropertiesToPanel_Variable(e);break;case"condition":this.addPropertiesToPanel_Condition(e);break;case"jump":this.addPropertiesToPanel_Jump(e);break;case"ending":this.addPropertiesToPanel_Ending(e);break;case"html":this.addPropertiesToPanel_HTML(e);break}}addPropertiesToPanel_Start(e){var t,a,r;(t=this.propertyPanel)==null||t.addProperty({name:"title",label:"游戏标题",type:"string",value:e.data.title,options:{placeholder:"输入游戏标题"}}),(a=this.propertyPanel)==null||a.addProperty({name:"author",label:"作者",type:"string",value:e.data.author,options:{placeholder:"输入作者名"}}),(r=this.propertyPanel)==null||r.addProperty({name:"version",label:"版本号",type:"string",value:e.data.version,options:{placeholder:"例如：1.0.0"}})}addPropertiesToPanel_Dialogue(e){var r,s,o,n;const a=this.characterLibrary.getCharacterList().map(i=>i.name);(r=this.propertyPanel)==null||r.addProperty({name:"character",label:"角色名",type:"character-combo",value:e.data.character,options:{values:a}}),(s=this.propertyPanel)==null||s.addProperty({name:"text",label:"对话文本",type:"textarea",value:e.data.text,options:{placeholder:"输入对话内容..."}}),(o=this.propertyPanel)==null||o.addProperty({name:"typingSpeed",label:"打字速度 (ms)",type:"number",value:e.data.typingSpeed,options:{min:10,max:200,step:5}}),(n=this.propertyPanel)==null||n.addProperty({name:"waitTime",label:"等待时间 (ms)",type:"number",value:e.data.waitTime,options:{min:0,max:1e4,step:100}})}addPropertiesToPanel_Branch(e){var a,r;(e.data.options||[]).forEach((s,o)=>{var n;(n=this.propertyPanel)==null||n.addProperty({name:`option_${o}`,label:`选项 ${o+1}`,type:"string",value:s.text,options:{placeholder:"输入选项文本"}})}),(a=this.propertyPanel)==null||a.addButton({label:"➕ 增加选项",onClick:()=>this.addBranchOption(e),style:"primary"}),(r=this.propertyPanel)==null||r.addButton({label:"➖ 减少选项",onClick:()=>this.removeBranchOption(e),style:"danger"})}addPropertiesToPanel_Scene(e){var t,a,r;this.addSceneThumbnail(e),(t=this.propertyPanel)==null||t.addProperty({name:"backgroundName",label:"背景图片",type:"resource",value:e.data.backgroundName,options:{resourceType:"background",placeholder:"未选择背景"}}),(a=this.propertyPanel)==null||a.addProperty({name:"transition",label:"转场效果",type:"combo",value:e.data.transition,options:{values:["fade","slide","zoom","none"]}}),(r=this.propertyPanel)==null||r.addProperty({name:"duration",label:"持续时间 (ms)",type:"number",value:e.data.duration,options:{min:0,max:3e3,step:50}})}addSceneThumbnail(e){if(!this.propertyPanel)return;const t=document.createElement("div");t.className="property-thumbnail-row";const a=document.createElement("label");a.className="property-label",a.textContent="场景预览",t.appendChild(a);const r=document.createElement("div");r.className="property-thumbnail-container";let s="";if(e.data.backgroundName){const n=this.characterLibrary.getGlobalResource("background",e.data.backgroundName);n&&(s=n.url)}const o=document.createElement("div");o.className="property-thumbnail",o.id="scene-thumbnail-preview",s?(o.style.backgroundImage=`url(${s})`,o.style.backgroundSize="cover",o.style.backgroundPosition="center"):o.innerHTML='<span class="property-thumbnail-placeholder">无背景</span>',r.appendChild(o),t.appendChild(r),this.propertyPanel.content.appendChild(t)}updateSceneThumbnail(e){const t=document.getElementById("scene-thumbnail-preview");if(!t)return;let a="";if(e.data.backgroundName){const r=this.characterLibrary.getGlobalResource("background",e.data.backgroundName);r&&(a=r.url)}a?(t.style.backgroundImage=`url(${a})`,t.style.backgroundSize="cover",t.style.backgroundPosition="center",t.innerHTML=""):(t.style.backgroundImage="",t.innerHTML='<span class="property-thumbnail-placeholder">无背景</span>')}addEndingThumbnail(e){if(!this.propertyPanel)return;const t=document.createElement("div");t.className="property-thumbnail-row";const a=document.createElement("label");a.className="property-label",a.textContent="解锁图片预览",t.appendChild(a);const r=document.createElement("div");r.className="property-thumbnail-container";let s="";if(e.data.unlockImage){const n=this.characterLibrary.getGlobalResource("ending",e.data.unlockImage);n&&(s=n.url)}const o=document.createElement("div");o.className="property-thumbnail",o.id="ending-thumbnail-preview",s?(o.style.backgroundImage=`url(${s})`,o.style.backgroundSize="cover",o.style.backgroundPosition="center"):o.innerHTML='<span class="property-thumbnail-placeholder">无解锁图片</span>',r.appendChild(o),t.appendChild(r),this.propertyPanel.content.appendChild(t)}updateEndingThumbnail(e){const t=document.getElementById("ending-thumbnail-preview");if(!t)return;let a="";if(e.data.unlockImage){const r=this.characterLibrary.getGlobalResource("ending",e.data.unlockImage);r&&(a=r.url)}a?(t.style.backgroundImage=`url(${a})`,t.style.backgroundSize="cover",t.style.backgroundPosition="center",t.innerHTML=""):(t.style.backgroundImage="",t.innerHTML='<span class="property-thumbnail-placeholder">无解锁图片</span>')}addPropertiesToPanel_Character(e){var r,s,o,n,i,c,l,u;const t=e.data.action;let a=e.data.positionPercent;if(a===void 0&&e.data.position)switch(e.data.position){case"left":a=0;break;case"center":a=50;break;case"right":a=100;break;default:a=50}(r=this.propertyPanel)==null||r.addProperty({name:"characterId",label:"选择角色",type:"character",value:e.data.characterId,visible:!0}),(s=this.propertyPanel)==null||s.addProperty({name:"expressionId",label:"选择表情",type:"expression",value:e.data.expressionId,visible:!0}),(o=this.propertyPanel)==null||o.addProperty({name:"action",label:"动作",type:"combo",value:e.data.action,options:{values:["show","hide","move","shake","blink"]},visible:!0}),(n=this.propertyPanel)==null||n.addProperty({name:"positionPercent",label:"位置 (0%=左, 100%=右)",type:"range",value:a||50,options:{min:1,max:100,step:1},visible:["show","move"].includes(t)}),(i=this.propertyPanel)==null||i.addProperty({name:"fadeDuration",label:t==="show"?"淡入时长(ms)":t==="hide"?"淡出时长(ms)":"移动时长(ms)",type:"number",value:e.data.fadeDuration||300,options:{min:0,max:3e3,step:50},visible:["show","hide","move"].includes(t)}),(c=this.propertyPanel)==null||c.addProperty({name:"shakeIntensity",label:"抖动强度",type:"number",value:e.data.shakeIntensity||10,options:{min:1,max:50,step:1},visible:t==="shake"}),(l=this.propertyPanel)==null||l.addProperty({name:"shakeDuration",label:"抖动时长(ms)",type:"number",value:e.data.shakeDuration||500,options:{min:100,max:5e3,step:100},visible:t==="shake"}),(u=this.propertyPanel)==null||u.addProperty({name:"blinkDuration",label:"闪烁时长(ms)",type:"number",value:e.data.blinkDuration||200,options:{min:50,max:2e3,step:50},visible:t==="blink"})}updateCharacterPropertyVisibility(e){var t,a,r,s,o,n;if((t=this.propertyPanel)==null||t.updatePropertyVisibility("position",["show","move"].includes(e)),(a=this.propertyPanel)==null||a.updatePropertyVisibility("fadeDuration",["show","hide","move"].includes(e)),["show","hide","move"].includes(e)){let i="动画时长";e==="show"?i="淡入时长(ms)":e==="hide"?i="淡出时长(ms)":e==="move"&&(i="移动时长(ms)"),(r=this.propertyPanel)==null||r.updatePropertyLabel("fadeDuration",i)}(s=this.propertyPanel)==null||s.updatePropertyVisibility("shakeIntensity",e==="shake"),(o=this.propertyPanel)==null||o.updatePropertyVisibility("shakeDuration",e==="shake"),(n=this.propertyPanel)==null||n.updatePropertyVisibility("blinkDuration",e==="blink")}addPropertiesToPanel_Audio(e){var a,r,s;(a=this.propertyPanel)==null||a.addProperty({name:"audioName",label:"音频文件",type:"resource",value:e.data.audioName,options:{resourceType:"bgm",placeholder:"未选择音频"}}),(r=this.propertyPanel)==null||r.addProperty({name:"loop",label:"循环播放",type:"boolean",value:e.data.loop}),(s=this.propertyPanel)==null||s.addProperty({name:"volume",label:"音量",type:"number",value:e.data.volume,options:{min:0,max:1,step:.1}})}addPropertiesToPanel_Sfx(e){var a,r;(a=this.propertyPanel)==null||a.addProperty({name:"sfxName",label:"音效文件",type:"resource",value:e.data.sfxName,options:{resourceType:"sfx",placeholder:"未选择音效"}}),(r=this.propertyPanel)==null||r.addProperty({name:"volume",label:"音量",type:"number",value:e.data.volume,options:{min:0,max:1,step:.1}})}addPropertiesToPanel_Variable(e){var t,a,r;(t=this.propertyPanel)==null||t.addProperty({name:"variable",label:"变量名",type:"string",value:e.data.variable,options:{placeholder:"输入变量名"}}),(a=this.propertyPanel)==null||a.addProperty({name:"operation",label:"操作",type:"combo",value:e.data.operation,options:{values:["set","add","subtract","multiply","divide"]}}),(r=this.propertyPanel)==null||r.addProperty({name:"value",label:"值",type:"number",value:e.data.value,options:{step:1}})}addPropertiesToPanel_Condition(e){var t,a,r;(t=this.propertyPanel)==null||t.addProperty({name:"variable",label:"变量名",type:"string",value:e.data.variable,options:{placeholder:"输入变量名"}}),(a=this.propertyPanel)==null||a.addProperty({name:"operator",label:"操作符",type:"combo",value:e.data.operator,options:{values:["==","!=",">","<",">=","<="]}}),(r=this.propertyPanel)==null||r.addProperty({name:"value",label:"比较值",type:"number",value:e.data.value,options:{step:1}})}addPropertiesToPanel_Jump(e){var r,s,o,n;const t=Array.from(this.stateManager.getNodes().entries()).filter(([i])=>i!==e.id).map(([i,c])=>({id:i,label:`${i} (${this.nodeFactory.getNodeTypeConfig(c.type).label})`})),a=["--- 手动输入 ---",...t.map(i=>i.label)];(s=this.propertyPanel)==null||s.addProperty({name:"targetSelect",label:"选择目标节点",type:"combo",value:((r=t.find(i=>i.id===e.data.target))==null?void 0:r.label)||"--- 手动输入 ---",options:{values:a}}),(o=this.propertyPanel)==null||o.addProperty({name:"target",label:"或输入节点ID",type:"string",value:e.data.target,options:{placeholder:"例如: 12345"}}),(n=this.propertyPanel)==null||n.addProperty({name:"type",label:"跳转类型",type:"combo",value:e.data.type,options:{values:["node","label","variable"]}})}addPropertiesToPanel_Ending(e){var t,a,r;this.addEndingThumbnail(e),(t=this.propertyPanel)==null||t.addProperty({name:"endingId",label:"结局ID",type:"string",value:e.data.endingId,options:{placeholder:"输入结局ID"}}),(a=this.propertyPanel)==null||a.addProperty({name:"title",label:"结局标题",type:"string",value:e.data.title,options:{placeholder:"输入结局标题"}}),(r=this.propertyPanel)==null||r.addProperty({name:"unlockImage",label:"解锁图片",type:"resource",value:e.data.unlockImage,options:{resourceType:"ending",placeholder:"未选择解锁图片"}})}addPropertiesToPanel_HTML(e){var a,r,s,o;(a=this.propertyPanel)==null||a.addProperty({name:"id",label:"HTML元素ID",type:"string",value:e.data.id,options:{placeholder:"输入唯一的HTML元素ID，用于后续显示/隐藏"}});const t=this.decodeHTMLFromBase64(e.data.code);(r=this.propertyPanel)==null||r.addProperty({name:"code",label:"HTML代码",type:"textarea",value:t,options:{placeholder:'输入HTML代码，例如：<div class="custom-element">内容</div>'}}),(s=this.propertyPanel)==null||s.addProperty({name:"layerPosition",label:"图层位置",type:"combo",value:e.data.layerPosition||"above-character",options:{values:["above-character","below-character"]}}),(o=this.propertyPanel)==null||o.addProperty({name:"visible",label:"显示",type:"boolean",value:e.data.visible!==!1,options:{}})}addBranchOption(e){if(e.data.options.length>=10){alert("最多支持 10 个选项");return}this.nodeFactory.addBranchOption(e),this.openPropertyPanel(e),console.log(`✓ 节点 ${e.id} 增加选项`)}removeBranchOption(e){if(e.data.options.length<=1){alert("至少需要保留 1 个选项");return}const a=e.data.options.length-1,r=this.stateManager.getConnections();this.stateManager.setConnections(r.filter(s=>{if(s.sourceId===e.id){if(s.sourceSlot===a)return console.log(`✓ 删除连接: ${s.id}`),!1;s.sourceSlot>a&&s.sourceSlot--}return!0})),this.nodeFactory.removeBranchOption(e),this.openPropertyPanel(e),console.log(`✓ 节点 ${e.id} 减少选项`)}getEditingNodeId(){return this.editingNodeId}updateNodeProperty(e,t,a){var s;console.log(`[PropertyEditorManager] updateNodeProperty called: nodeId=${e}, name=${t}, value=${a}, valueType=${typeof a}`);const r=this.stateManager.getNode(e);if(!r){console.warn(`[PropertyEditorManager] Node not found: ${e}`);return}if(r.type==="branch"&&t.startsWith("option_")){const o=parseInt(t.replace("option_",""));r.data.options&&r.data.options[o]&&(r.data.options[o].text=a)}else if(r.type==="jump"&&t==="targetSelect"){if(a!=="--- 手动输入 ---"){const o=a.split(" (")[0].trim();r.data.target=o}}else r.type==="html"&&t==="code"?(r.data.code=this.encodeHTMLToBase64(a),console.log("[PropertyEditorManager] HTML code encoded to base64")):r.data[t]=a;r.type==="scene"&&t==="backgroundName"&&a&&(r.data.backgroundId||(r.data.backgroundId=a,console.log(`[PropertyEditorManager] Auto-generated backgroundId: ${a}`)),this.updateSceneThumbnail(r)),r.type==="audio"&&t==="audioName"&&a&&(r.data.audioId||(r.data.audioId=a,console.log(`[PropertyEditorManager] Auto-generated audioId: ${a}`))),r.type==="sfx"&&t==="sfxName"&&a&&(r.data.sfxId||(r.data.sfxId=a,console.log(`[PropertyEditorManager] Auto-generated sfxId: ${a}`))),r.type==="ending"&&t==="unlockImage"&&(a&&(r.data.unlockImageId||(r.data.unlockImageId=a,console.log(`[PropertyEditorManager] Auto-generated unlockImageId: ${a}`))),this.updateEndingThumbnail(r)),(s=this.propertyPanel)==null||s.updatePropertyValue(t,a),console.log(`更新节点 ${e} 属性: ${t} =`,a)}encodeHTMLToBase64(e){if(!e)return"";try{return btoa(unescape(encodeURIComponent(e)))}catch(t){return console.error("[PropertyEditorManager] Failed to encode HTML to base64:",t),""}}decodeHTMLFromBase64(e){if(!e)return"";try{return decodeURIComponent(escape(atob(e)))}catch(t){return console.error("[PropertyEditorManager] Failed to decode HTML from base64:",t),e}}close(){this.propertyPanel&&(this.propertyPanel.destroy(),this.propertyPanel=null),this.editingNodeId=null}}class W{constructor(e){d(this,"stateManager");d(this,"STORAGE_KEY","workflow_graph");this.stateManager=e}saveGraph(){const e={nodes:Array.from(this.stateManager.getNodes().entries()),connections:this.stateManager.getConnections(),offset:this.stateManager.getOffset(),scale:this.stateManager.getScale()};localStorage.setItem(this.STORAGE_KEY,JSON.stringify(e)),console.log("✓ 图谱已保存到 localStorage")}loadGraph(){const e=localStorage.getItem(this.STORAGE_KEY);if(e)try{const t=JSON.parse(e);this.stateManager.clearNodes(),this.stateManager.setConnections([]);const a=new Map(t.nodes);t.nodes.forEach(([s,o])=>{this.stateManager.setNode(s,o)}),this.stateManager.setConnections(t.connections||[]),this.stateManager.setOffset(t.offset||[0,0]),this.stateManager.setScale(t.scale||1);const r=Array.from(a.keys()).map(s=>parseInt(s)||0).reduce((s,o)=>Math.max(s,o),0);this.stateManager.setNodeIdCounter(r+1),console.log("✓ 图谱已从 localStorage 加载")}catch(t){console.error("加载图谱失败:",t)}}}class x{static cleanNodeData(e){if(!e||typeof e!="object")return e;const t={};for(const a in e){const r=e[a];r!=null&&(typeof r=="string"?t[a]=r.trim():Array.isArray(r)?t[a]=r.map(s=>typeof s=="object"?this.cleanNodeData(s):s):typeof r=="object"?t[a]=this.cleanNodeData(r):t[a]=r)}return t}static async convertBlobToBase64(e){if(!e||!e.startsWith("blob:"))return e||"";try{const a=await(await fetch(e)).blob();return new Promise((r,s)=>{const o=new FileReader;o.onloadend=()=>r(o.result),o.onerror=s,o.readAsDataURL(a)})}catch(t){return console.error("转换 blob URL 失败:",t),e||""}}static animateNodeCreation(e,t,a,r,s){e.y=a-50,e.x=t;let o=0;const n=300,i=performance.now(),c=l=>{const u=l-i;o=Math.min(u/n,1);const p=1-Math.pow(1-o,3);e.y=a-50*(1-p),r(e.x,e.y),o<1?requestAnimationFrame(c):(e.x=t,e.y=a,r(e.x,e.y),s())};requestAnimationFrame(c)}static downloadFile(e,t,a="text/html"){const r=new Blob([e],{type:a}),s=URL.createObjectURL(r),o=document.createElement("a");o.href=s,o.download=t,document.body.appendChild(o),o.click(),document.body.removeChild(o),URL.revokeObjectURL(s)}static async readFile(e){return await e.text()}}class X{constructor(e,t,a){d(this,"stateManager");d(this,"resourceManager");d(this,"characterLibrary");this.stateManager=e,this.resourceManager=t,this.characterLibrary=a}async exportWorkflow(){var n,i,c;const e=Array.from(this.stateManager.getNodes().entries()).map(([l,u])=>({id:l,type:u.type,x:u.x,y:u.y,data:x.cleanNodeData(u.data),inputs:u.inputs,outputs:u.outputs})),t=Array.from(this.stateManager.getNodes().values()).find(l=>l.type==="start"),a={title:((n=t==null?void 0:t.data)==null?void 0:n.title)||"未命名游戏",author:((i=t==null?void 0:t.data)==null?void 0:i.author)||"未知作者",version:((c=t==null?void 0:t.data)==null?void 0:c.version)||"1.0.0",exportTime:new Date().toISOString(),nodeCount:this.stateManager.getNodes().size,connectionCount:this.stateManager.getConnections().length},r=this.resourceManager.exportResources();for(const l in r)r[l].url=await x.convertBlobToBase64(r[l].url);const s=this.characterLibrary.exportLibrary();for(const l in s){const u=s[l];if(Array.isArray(u.expressions)){const p={};for(const b of u.expressions){const y=this.resourceManager.getResource(b.resourceId);y?p[b.id]={...b,resource:{...y,url:await x.convertBlobToBase64(y.url)}}:p[b.id]=b}u.expressions=p}}const o=this.characterLibrary.exportGlobalResources();for(const l in o)for(const u in o[l]){const p=o[l][u];p&&p.url&&(p.url=await x.convertBlobToBase64(p.url))}return{nodes:e,connections:this.stateManager.getConnections(),resources:r,characters:s,globalResources:o,metadata:a}}generateGameId(e,t){const a=`${e}_${t}_${Date.now()}`;let r=0;for(let s=0;s<a.length;s++)r=(r<<5)-r+a.charCodeAt(s),r=r&r;return`game_${Math.abs(r)}`}generateStorageKey(e,t){return`galgame_${e.replace(/\s+/g,"_")}_game_${t}_autosave`}async exportHtml(){var r;const e=await this.exportWorkflow(),t=this.generateGameId(e.metadata.title,e.metadata.version),a=this.generateStorageKey(e.metadata.title,t);return`<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${e.metadata.title}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { width: 100vw; height: 100vh; overflow: hidden; background: #000; font-family: 'Microsoft YaHei', Arial, sans-serif; }
+    #game-container { width: 100%; height: 100%; position: relative; overflow: hidden; }
+    #game-background { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; background-position: center; z-index: 0; transition: opacity ${((r=e.nodes.find(s=>s.type==="scene"))==null?void 0:r.data.duration)||500}ms; }
+    #character-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
+    .character { position: absolute; bottom: 0; transition: all 0.3s ease; max-height: 90%; max-width: 30%; }
+    #dialogue-box { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 1000px; background: rgba(0, 0, 0, 0.85); border: 2px solid rgba(255, 255, 255, 0.2); border-radius: 10px; padding: 20px 30px; z-index: 100; color: #fff; cursor: pointer; transition: opacity 0.3s; }
+    #dialogue-box.hidden { opacity: 0; pointer-events: none; }
+    #speaker-name { font-size: 24px; font-weight: bold; margin-bottom: 10px; color: #ffd700; }
+    #dialogue-text { font-size: 18px; line-height: 1.6; min-height: 60px; }
+    #branch-options { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 100; }
+    .branch-option { background: rgba(0, 0, 0, 0.9); border: 2px solid rgba(255, 255, 255, 0.3); border-radius: 10px; padding: 15px 40px; margin: 10px 0; color: #fff; font-size: 20px; cursor: pointer; transition: all 0.3s; text-align: center; min-width: 300px; }
+    .branch-option:hover { background: rgba(74, 158, 255, 0.3); border-color: #4a9eff; transform: scale(1.05); }
+    #loading-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; transition: opacity 0.5s; }
+    #loading-screen.hidden { opacity: 0; pointer-events: none; }
+    #loading-bar { width: 300px; height: 4px; background: #333; border-radius: 2px; overflow: hidden; margin-top: 20px; }
+    #loading-progress { width: 0%; height: 100%; background: #4a9eff; transition: width 0.3s; }
+    #start-menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 900; }
+    #start-menu.hidden { display: none; }
+    #start-menu h1 { font-size: 48px; color: #fff; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5); }
+    #start-menu .subtitle { font-size: 18px; color: #888; margin-bottom: 50px; }
+    .start-buttons { display: flex; flex-direction: column; gap: 20px; }
+    .menu-button { padding: 15px 60px; border: none; border-radius: 8px; cursor: pointer; font-size: 18px; font-weight: bold; transition: all 0.3s; min-width: 200px; }
+    .menu-button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .menu-button.primary { background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%); color: white; }
+    .menu-button.primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(74, 144, 226, 0.4); }
+    .menu-button.secondary { background: rgba(255, 255, 255, 0.1); color: white; border: 2px solid rgba(255, 255, 255, 0.3); }
+    .menu-button.secondary:hover:not(:disabled) { background: rgba(255, 255, 255, 0.2); transform: translateY(-2px); }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes shake { 0%, 100% { transform: translateX(0); } 10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); } 20%, 40%, 60%, 80% { transform: translateX(5px); } }
+    @keyframes shake-vertical { 0%, 100% { transform: translateY(0); } 25% { transform: translateY(-3px); } 75% { transform: translateY(3px); } }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .character.shaking { animation: shake 0.5s ease-in-out; }
+    .character.shaking-vertical { animation: shake-vertical 0.3s ease-in-out infinite; }
+    .character.blinking { animation: blink 0.6s ease-in-out 3; }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <div id="loading-screen">
+      <h1 style="color: #fff; margin-bottom: 20px;">${e.metadata.title}</h1>
+      <div id="loading-bar"><div id="loading-progress"></div></div>
+    </div>
+    <div id="start-menu" class="hidden">
+      <h1>${e.metadata.title}</h1>
+      <div class="subtitle">版本: ${e.metadata.version} | 作者: ${e.metadata.author}</div>
+      <div class="start-buttons">
+        <button id="btn-new-game" class="menu-button primary">开始游戏</button>
+        <button id="btn-continue" class="menu-button secondary" disabled>继续游戏</button>
+      </div>
+    </div>
+    <div id="game-background"></div>
+    <div id="character-layer"></div>
+    <div id="dialogue-box" class="hidden">
+      <div id="speaker-name"></div>
+      <div id="dialogue-text"></div>
+    </div>
+    <div id="branch-options"></div>
+  </div>
+  <script>
+    const gameData = ${JSON.stringify(e,null,2)};
+
+    // 游戏ID和存储key（导出时硬编码到HTML中）
+    const gameId = '${t}';
+    const storageKey = '${a}';
+    console.log('游戏存储 key:', storageKey);
+    class GalgameEngine {
+      constructor(container) {
+        this.container = container;
+        this.nodes = gameData.nodes;
+        this.connections = gameData.connections;
+        this.resources = gameData.resources;
+        this.gameData = gameData;
+        this.currentNode = null;
+        this.variables = {};
+        this.isRunning = false;
+        this.userInteracted = false;
+        this.background = container.querySelector('#game-background');
+        this.characterLayer = container.querySelector('#character-layer');
+        this.dialogueBox = container.querySelector('#dialogue-box');
+        this.speakerName = container.querySelector('#speaker-name');
+        this.dialogueText = container.querySelector('#dialogue-text');
+        this.branchOptions = container.querySelector('#branch-options');
+        this.CHARACTER_WIDTH_RATIO = 0.3; // 角色图片宽度占屏幕的比例（30%）
+        this.isTyping = false; // 是否正在打字
+        this.currentText = ''; // 当前显示的文本
+        this.typingTimer = null; // 打字计时器
+        this.currentBackgroundName = null; // 当前背景名称
+        this.currentBackgroundMusic = null; // 当前背景音乐
+        this.currentBGMElement = null; // 当前BGM元素
+        this.setupEvents();
+      }
+      /**
+       * 将用户输入的0-100%位置转换为实际的CSS left值
+       * 0% = 角色左边缘贴合屏幕左边界
+       * 100% = 角色右边缘贴合屏幕右边界
+       */
+      convertPositionPercent(positionPercent) {
+        // 实际left值 = positionPercent * (100 - 角色宽度百分比) / 100
+        return positionPercent * (100 - this.CHARACTER_WIDTH_RATIO * 100) / 100;
+      }
+      setupEvents() {
+        this.dialogueBox.addEventListener('click', () => {
+          this.userInteracted = true;
+          // 如果正在打字，立即完成
+          if (this.isTyping) {
+            this.completeTyping();
+          } else {
+            this.next();
+          }
+        });
+        this.container.addEventListener('click', () => { this.userInteracted = true; }, { once: true });
+        this.container.addEventListener('keydown', () => { this.userInteracted = true; }, { once: true });
+      }
+      
+      // 保存当前进度
+      saveProgress() {
+        // 使用当前跟踪的背景名称
+        const backgroundName = this.currentBackgroundName;
+
+        // 获取当前显示的角色（只保存ID和状态，不保存图片数据）
+        const characterElements = this.characterLayer.querySelectorAll('.character');
+        const visibleCharacters = [];
+        characterElements.forEach((img, index) => {
+          visibleCharacters.push({
+            id: img.id.replace('character-', ''),
+            left: img.style.left,
+            opacity: img.style.opacity
+          });
+        });
+
+        const saveData = {
+          nodeId: this.currentNode ? this.currentNode.id : null,
+          variables: this.variables,
+          backgroundName: backgroundName,
+          backgroundMusic: this.currentBackgroundMusic,
+          characters: visibleCharacters,
+          timestamp: Date.now()
+        };
+
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(saveData));
+          console.log('========== 进度已保存 ==========');
+          console.log('节点ID:', saveData.nodeId);
+          console.log('变量数量:', Object.keys(saveData.variables).length);
+          console.log('变量详情:', JSON.stringify(saveData.variables));
+          console.log('背景名称:', saveData.backgroundName);
+          console.log('背景音乐:', saveData.backgroundMusic);
+          console.log('角色数量:', visibleCharacters.length);
+          console.log('================================');
+        } catch (error) {
+          console.error('保存失败:', error);
+        }
+      }
+      
+      // 加载进度
+      async loadProgress() {
+        try {
+          const data = localStorage.getItem(storageKey);
+          if (!data) return false;
+
+          const saveData = JSON.parse(data);
+          console.log('========== 开始加载进度 ==========');
+          console.log('保存的数据:', saveData);
+
+          // 恢复变量
+          this.variables = saveData.variables || {};
+          console.log('变量已恢复:', this.variables);
+          console.log('变量数量:', Object.keys(this.variables).length);
+
+          // 恢复背景（从 gameData 中获取资源）
+          if (saveData.backgroundName && this.gameData.globalResources && this.gameData.globalResources.backgrounds) {
+            const bgResource = this.gameData.globalResources.backgrounds[saveData.backgroundName];
+            if (bgResource && bgResource.url) {
+              this.background.style.backgroundImage = 'url(' + bgResource.url + ')';
+              this.currentBackgroundName = saveData.backgroundName;
+              console.log('背景已恢复:', saveData.backgroundName);
+            }
+          } else {
+            console.log('背景未设置或不存在:', saveData.backgroundName);
+          }
+
+          // 恢复背景音乐（从 gameData 中获取资源）
+          if (saveData.backgroundMusic && this.gameData.globalResources && this.gameData.globalResources.bgms) {
+            const bgmResource = this.gameData.globalResources.bgms[saveData.backgroundMusic];
+            if (bgmResource && bgmResource.url) {
+              this.playBackgroundMusic(saveData.backgroundMusic, bgmResource.url);
+            } else {
+              console.log('背景音乐未设置或不存在:', saveData.backgroundMusic);
+            }
+          } else {
+            console.log('背景音乐未设置:', saveData.backgroundMusic);
+          }
+
+          // 恢复角色（从 gameData 中获取资源）
+          this.characterLayer.innerHTML = '';
+          if (saveData.characters && Array.isArray(saveData.characters)) {
+            for (const char of saveData.characters) {
+              const charData = this.gameData.characters[char.id];
+              if (!charData) {
+                console.warn('角色不存在:', char.id);
+                continue;
+              }
+
+              // 获取角色默认表情
+              let imageUrl = null;
+              if (Array.isArray(charData.expressions)) {
+                // 旧格式：expressions 是数组
+                imageUrl = charData.expressions[0]?.resource?.url;
+              } else if (charData.expressions && typeof charData.expressions === 'object') {
+                // 新格式：expressions 是对象
+                const firstExpression = Object.values(charData.expressions)[0];
+                imageUrl = firstExpression?.resource?.url;
+              }
+
+              if (imageUrl) {
+                const img = document.createElement('img');
+                img.id = 'character-' + char.id;
+                img.src = imageUrl;
+                img.className = 'character';
+                img.style.left = char.left;
+                img.style.opacity = char.opacity;
+                this.characterLayer.appendChild(img);
+                console.log('角色已恢复:', char.id, imageUrl);
+              }
+            }
+            console.log('角色已恢复，数量:', saveData.characters.length);
+          }
+
+          // 返回要执行的节点
+          if (saveData.nodeId) {
+            const node = this.nodes.find(n => n.id === saveData.nodeId);
+            // 设置当前节点但不要立即保存
+            this.currentNode = node;
+            console.log('当前节点已设置:', node ? node.id : null, '类型:', node ? node.type : null);
+          }
+
+          console.log('================================');
+          return this.currentNode;
+
+        } catch (error) {
+          console.error('加载失败:', error);
+          return false;
+        }
+      }
+      
+      // 检查是否有存档
+      hasSave() {
+        return localStorage.getItem(storageKey) !== null;
+      }
+
+      // 获取存档信息
+      getSaveInfo() {
+        try {
+          const data = localStorage.getItem(storageKey);
+          if (!data) return null;
+
+          const saveData = JSON.parse(data);
+          return {
+            exists: true,
+            timestamp: saveData.timestamp
+          };
+        } catch (error) {
+          return null;
+        }
+      }
+
+      // 恢复并显示当前节点的状态
+      async restoreAndShowState(node) {
+        if (!node) return;
+
+        // 根据节点类型重新执行显示逻辑，但不继续
+        switch (node.type) {
+          case 'dialogue':
+            // 显示对话但不自动继续
+            this.speakerName.textContent = node.data.character || '';
+            this.dialogueBox.classList.remove('hidden');
+            this.dialogueText.textContent = node.data.text || '';
+            break;
+          case 'scene':
+            // 场景节点已经在 loadProgress 中恢复了背景
+            break;
+          case 'character':
+            // 角色已经在 loadProgress 中恢复了
+            break;
+        }
+      }
+      completeTyping() {
+        if (this.typingTimer) {
+          clearTimeout(this.typingTimer);
+          this.typingTimer = null;
+        }
+        this.isTyping = false;
+        this.dialogueText.textContent = this.currentText;
+      }
+      async start() {
+        this.isRunning = true;
+        const startNode = this.nodes.find(n => n.type === 'start');
+        if (startNode) await this.executeNode(startNode);
+      }
+      async executeNode(node) {
+        this.currentNode = node;
+        // 自动保存
+        this.saveProgress();
+        
+        switch (node.type) {
+          case 'dialogue': await this.showDialogue(node); break;
+          case 'scene': await this.showScene(node); break;
+          case 'character': await this.showCharacter(node); break;
+          case 'audio': await this.playAudio(node); break;
+          case 'sfx': await this.playSfx(node); break;
+          case 'branch': await this.showBranch(node); break;
+          case 'variable': await this.handleVariable(node); break;
+          case 'condition': await this.checkCondition(node); break;
+          case 'jump': await this.jumpTo(node); break;
+          case 'ending': await this.showEnding(node); break;
+          case 'html': await this.handleHTML(node); break;
+          default: await this.next();
+        }
+      }
+      async showDialogue(node) {
+        this.speakerName.textContent = node.data.character || '';
+        this.dialogueBox.classList.remove('hidden');
+
+        // 检查是否启用打字机效果
+        const enableTyping = node.data.typing !== false; // 默认启用
+        const typingSpeed = node.data.typingSpeed || 50; // 默认50ms
+
+        if (enableTyping) {
+          // 打字机效果
+          await this.typewriterEffect(node.data.text || '', typingSpeed);
+        } else {
+          // 直接显示
+          this.dialogueText.textContent = node.data.text || '';
+        }
+      }
+      async typewriterEffect(text, speed) {
+        this.currentText = text;
+        this.dialogueText.textContent = '';
+        this.isTyping = true;
+
+        for (let i = 0; i < text.length; i++) {
+          // 如果已经不再打字（点击完成），则立即返回
+          if (!this.isTyping) break;
+
+          this.dialogueText.textContent += text[i];
+          await new Promise(resolve => {
+            this.typingTimer = setTimeout(resolve, speed);
+          });
+        }
+
+        this.isTyping = false;
+        this.typingTimer = null;
+      }
+      async showScene(node) {
+        if (node.data.backgroundName && this.gameData.globalResources.backgrounds && this.gameData.globalResources.backgrounds[node.data.backgroundName]) {
+          this.background.style.backgroundImage = \`url(\${this.gameData.globalResources.backgrounds[node.data.backgroundName].url})\`;
+          this.currentBackgroundName = node.data.backgroundName;
+        }
+        if (node.data.bgmName && this.gameData.globalResources.bgms && this.gameData.globalResources.bgms[node.data.bgmName]) {
+          const bgmResource = this.gameData.globalResources.bgms[node.data.bgmName];
+          if (bgmResource && bgmResource.url) {
+            this.playBackgroundMusic(node.data.bgmName, bgmResource.url);
+          }
+        }
+        await this.next();
+      }
+      async showCharacter(node) {
+        const characterId = node.data.characterId;
+        if (!characterId) {
+          await this.next();
+          return;
+        }
+
+        const action = node.data.action;
+        // 支持 expression 和 expressionId 两种字段名
+        const expressionId = node.data.expressionId || node.data.expression;
+        let imageUrl = null;
+
+        // 获取角色图片 URL
+        if (this.gameData.characters[characterId]) {
+          const character = this.gameData.characters[characterId];
+          let expression;
+          if (Array.isArray(character.expressions)) {
+            expression = character.expressions.find(e => e.id === expressionId);
+          } else {
+            expression = character.expressions[expressionId];
+          }
+          if (expression && expression.resource) {
+            imageUrl = expression.resource.url;
+          }
+        }
+
+        // 获取位置百分比，兼容旧格式
+        let positionPercent = node.data.positionPercent;
+        if (positionPercent === undefined && node.data.position) {
+          // 旧格式数据转换：left=0%, center=50%, right=100%
+          switch (node.data.position) {
+            case 'left': positionPercent = 0; break;
+            case 'center': positionPercent = 50; break;
+            case 'right': positionPercent = 100; break;
+            default: positionPercent = 50;
+          }
+        }
+
+        switch (action) {
+          case 'show':
+            if (imageUrl) this.showCharacterElement(characterId, positionPercent || 50, imageUrl, node.data.fadeDuration || 300);
+            await this.next();
+            break;
+          case 'hide':
+            await this.hideCharacterElement(characterId, node.data.fadeDuration || 300);
+            await this.next();
+            break;
+          case 'move':
+            await this.moveCharacterElement(characterId, positionPercent || 50, node.data.fadeDuration || 300);
+            await this.next();
+            break;
+          case 'shake':
+            await this.shakeCharacter(characterId, node.data.shakeIntensity || 10, node.data.shakeDuration || 500);
+            await this.next();
+            break;
+          case 'blink':
+            await this.blinkCharacter(characterId, node.data.blinkDuration || 200);
+            await this.next();
+            break;
+          default:
+            await this.next();
+        }
+      }
+      showCharacterElement(characterId, positionPercent, imageUrl, duration) {
+        let img = document.getElementById(\`character-\${characterId}\`);
+        if (!img) {
+          img = document.createElement('img');
+          img.id = \`character-\${characterId}\`;
+          img.src = imageUrl;
+          img.className = 'character';
+          // 转换位置百分比：0%表示左边缘贴左边界，100%表示右边缘贴右边界
+          const actualLeft = this.convertPositionPercent(positionPercent);
+          img.style.left = \`\${actualLeft}%\`;
+          img.style.opacity = '0';
+          this.characterLayer.appendChild(img);
+
+          // 强制重绘
+          img.offsetHeight;
+
+          // 淡入动画
+          img.style.transition = \`opacity \${duration}ms ease, left \${duration}ms ease\`;
+          img.style.opacity = '1';
+        } else {
+          img.src = imageUrl;
+          img.className = 'character';
+          const actualLeft = this.convertPositionPercent(positionPercent);
+          img.style.left = \`\${actualLeft}%\`;
+          img.style.opacity = '1';
+        }
+      }
+      async hideCharacterElement(characterId, duration) {
+        const img = document.getElementById(\`character-\${characterId}\`);
+        if (img) {
+          img.style.transition = \`opacity \${duration}ms ease\`;
+          img.style.opacity = '0';
+          await new Promise(resolve => setTimeout(resolve, duration));
+          img.remove();
+        }
+      }
+      async moveCharacterElement(characterId, positionPercent, duration) {
+        const img = document.getElementById(\`character-\${characterId}\`);
+        if (img) {
+          const actualLeft = this.convertPositionPercent(positionPercent);
+          img.style.transition = \`left \${duration}ms ease\`;
+          img.style.left = \`\${actualLeft}%\`;
+          await new Promise(resolve => setTimeout(resolve, duration));
+        }
+      }
+      async shakeCharacter(characterId, intensity, duration) {
+        const img = document.getElementById(\`character-\${characterId}\`);
+        if (!img) return;
+
+        const startTime = Date.now();
+
+        while (Date.now() - startTime < duration) {
+          const offsetX = (Math.random() - 0.5) * intensity * 2;
+          const offsetY = (Math.random() - 0.5) * intensity;
+          img.style.transform = \`translate(\${offsetX}px, \${offsetY}px)\`;
+          await new Promise(resolve => setTimeout(resolve, 30));
+        }
+
+        // 恢复原始 transform
+        img.style.transform = '';
+      }
+      async blinkCharacter(characterId, duration) {
+        const img = document.getElementById(\`character-\${characterId}\`);
+        if (!img) return;
+
+        const originalOpacity = img.style.opacity || '1';
+        const blinkCount = 3;
+        const blinkInterval = duration / (blinkCount * 2);
+
+        for (let i = 0; i < blinkCount; i++) {
+          img.style.transition = \`opacity \${blinkInterval}ms ease\`;
+          img.style.opacity = '0.3';
+          await new Promise(resolve => setTimeout(resolve, blinkInterval));
+
+          img.style.opacity = originalOpacity;
+          await new Promise(resolve => setTimeout(resolve, blinkInterval));
+        }
+      }
+      clearCharacters() {
+        this.characterLayer.innerHTML = '';
+      }
+      async playAudio(node) {
+        const audioTypeMap = { music: 'bgm', sfx: 'sfx', voice: 'voice' };
+        const resourceType = audioTypeMap[node.data.type] || 'bgm';
+        if (node.data.audioName && this.gameData.globalResources[resourceType + 's']) {
+          const audioResource = this.gameData.globalResources[resourceType + 's'][node.data.audioName];
+          if (audioResource && audioResource.url) {
+            try {
+              const audio = new Audio(audioResource.url);
+              audio.loop = node.data.loop !== false;
+              audio.volume = node.data.volume || 1;
+              await audio.play();
+              
+              // 如果是背景音乐，记录它
+              if (node.data.type === 'music') {
+                this.currentBackgroundMusic = node.data.audioName;
+                this.currentBGMElement = audio;
+              }
+            } catch (error) {
+              console.warn('音频播放失败', error);
+            }
+          }
+        }
+        await this.next();
+      }
+      
+      // 播放背景音乐（用于恢复）
+      playBackgroundMusic(bgmName, bgmUrl) {
+        // 停止当前音乐
+        if (this.currentBGMElement) {
+          this.currentBGMElement.pause();
+          this.currentBGMElement = null;
+        }
+        
+        // 播放新音乐
+        try {
+          const audio = new Audio(bgmUrl);
+          audio.loop = true;
+          audio.volume = 1;
+          audio.play();
+          this.currentBackgroundMusic = bgmName;
+          this.currentBGMElement = audio;
+          console.log('背景音乐已恢复:', bgmName);
+        } catch (error) {
+          console.error('背景音乐播放失败:', error);
+        }
+      }
+      async playSfx(node) {
+        if (node.data.sfxName && this.gameData.globalResources.sfxs) {
+          const sfxResource = this.gameData.globalResources.sfxs[node.data.sfxName];
+          if (sfxResource && sfxResource.url) {
+            try {
+              const audio = new Audio(sfxResource.url);
+              audio.volume = node.data.volume || 1;
+              await audio.play();
+            } catch (error) {
+              console.warn('音效播放失败', error);
+            }
+          }
+        }
+        await this.next();
+      }
+      async showBranch(node) {
+        this.dialogueBox.classList.add('hidden');
+        this.branchOptions.innerHTML = '';
+        const options = node.data.options || [];
+        options.forEach((option, index) => {
+          const btn = document.createElement('div');
+          btn.className = 'branch-option';
+          btn.textContent = option.text || '选项';
+          btn.addEventListener('click', () => {
+            this.branchOptions.innerHTML = '';
+            this.executeConnection(node.id, index);
+            // 选项选择后保存
+            this.saveProgress();
+          });
+          this.branchOptions.appendChild(btn);
+        });
+      }
+      async checkCondition(node) {
+        const variable = this.variables[node.data.variable] || 0;
+        const data = node.data;
+        let conditionMet = false;
+        switch (data.operator) {
+          case '==': conditionMet = variable == data.value; break;
+          case '!=': conditionMet = variable != data.value; break;
+          case '>': conditionMet = variable > data.value; break;
+          case '<': conditionMet = variable < data.value; break;
+          case '>=': conditionMet = variable >= data.value; break;
+          case '<=': conditionMet = variable <= data.value; break;
+        }
+        this.executeConnection(node.id, conditionMet ? 0 : 1);
+      }
+      async handleVariable(node) {
+        const data = node.data;
+        const currentValue = this.variables[data.variable] !== undefined ? this.variables[data.variable] : 0;
+        let newValue = currentValue;
+        switch (data.operation) {
+          case 'set': newValue = data.value; break;
+          case 'add': newValue = Number(currentValue) + Number(data.value); break;
+          case 'subtract': newValue = Number(currentValue) - Number(data.value); break;
+          case 'multiply': newValue = Number(currentValue) * Number(data.value); break;
+          case 'divide':
+            const divisor = Number(data.value);
+            if (divisor === 0) newValue = currentValue;
+            else newValue = Number(currentValue) / divisor;
+            break;
+        }
+        this.variables[data.variable] = newValue;
+        console.log('变量已更新:', data.variable, '=', newValue);
+        await this.next();
+      }
+      async jumpTo(node) {
+        const targetNode = this.nodes.find(n => n.id === node.data.target);
+        if (targetNode) await this.executeNode(targetNode);
+      }
+      async showEnding(node) {
+        this.dialogueBox.classList.add('hidden');
+        this.background.style.backgroundImage = '';
+        this.clearCharacters();
+        const ending = document.createElement('div');
+        ending.style.cssText = \`position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #fff; z-index: 1000;\`;
+
+        // 获取解锁图片
+        let unlockImageHtml = '';
+        if (node.data.unlockImage && this.gameData.globalResources.endings && this.gameData.globalResources.endings[node.data.unlockImage]) {
+          const unlockImageResource = this.gameData.globalResources.endings[node.data.unlockImage];
+          unlockImageHtml = \`<div style="margin: 30px auto; max-width: 400px;"><img src="\${unlockImageResource.url}" alt="解锁图片" style="width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);"></div>\`;
+        }
+
+        ending.innerHTML = \`<h1 style="font-size: 48px; margin-bottom: 20px;">\${node.data.title}</h1>\${unlockImageHtml}<p style="font-size: 24px; color: #888;">结局 \${node.data.endingId}</p><button onclick="location.reload()" style="margin-top: 40px; padding: 15px 40px; font-size: 18px; background: #4a9eff; color: #fff; border: none; border-radius: 8px; cursor: pointer;">返回标题</button>\`;
+        this.container.appendChild(ending);
+      }
+      async handleHTML(node) {
+        // 处理HTML节点的显示/隐藏
+        const htmlId = node.data.id;
+        const visible = node.data.visible !== false; // 默认为 true
+
+        if (visible) {
+          // 显示HTML元素
+          await this.showHTMLElement(node);
+          console.log(\`[Preview] HTML element shown: \${htmlId}\`);
+        } else {
+          // 隐藏HTML元素
+          await this.hideHTMLElement(htmlId);
+          console.log(\`[Preview] HTML element hidden: \${htmlId}\`);
+        }
+
+        // 继续到下一个节点
+        await this.next();
+      }
+      async showHTMLElement(node) {
+        const htmlId = node.data.id;
+        const code = node.data.code;
+        const layerPosition = node.data.layerPosition || 'above-character';
+
+        // 检查是否已存在
+        let element = document.getElementById(\`html-element-\${htmlId}\`);
+
+        if (element) {
+          // 更新现有元素
+          element.style.opacity = '1';
+          return;
+        }
+
+        // 解码base64代码
+        let decodedCode = '';
+        if (code) {
+          try {
+            decodedCode = decodeURIComponent(escape(atob(code)));
+          } catch (e) {
+            console.error('[Preview] Failed to decode HTML code:', e);
+            return;
+          }
+        }
+
+        // 获取z-index
+        const zIndex = layerPosition === 'above-character' ? 11 : 5;
+
+        // 创建容器元素
+        const wrapper = document.createElement('div');
+        wrapper.id = \`html-element-\${htmlId}\`;
+        wrapper.style.cssText = \`
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          z-index: \${zIndex};
+          pointer-events: auto;
+          opacity: 0;
+          transition: opacity 0.3s ease;
+        \`;
+
+        // 插入HTML内容
+        wrapper.innerHTML = decodedCode;
+
+        // 执行HTML中的脚本
+        const scripts = wrapper.querySelectorAll('script');
+        const scriptsToExecute = [];
+        scripts.forEach((oldScript) => {
+          const newScript = document.createElement('script');
+          Array.from(oldScript.attributes).forEach(attr => {
+            newScript.setAttribute(attr.name, attr.value);
+          });
+          newScript.textContent = oldScript.textContent;
+          scriptsToExecute.push(newScript);
+        });
+        scriptsToExecute.forEach(script => {
+          wrapper.appendChild(script);
+        });
+
+        // 添加到预览容器
+        const gameContainer = document.querySelector('#game-container');
+        if (gameContainer) {
+          gameContainer.appendChild(wrapper);
+
+          // 显示元素
+          requestAnimationFrame(() => {
+            wrapper.style.opacity = '1';
+          });
+        }
+      }
+      async hideHTMLElement(htmlId) {
+        const element = document.getElementById(\`html-element-\${htmlId}\`);
+        if (element) {
+          element.style.opacity = '0';
+
+          // 移除元素（延迟以等待淡出动画）
+          setTimeout(() => {
+            if (element.parentNode) {
+              element.parentNode.removeChild(element);
+            }
+          }, 300);
+        }
+      }
+      next() {
+        this.dialogueBox.classList.add('hidden');
+        this.executeConnection(this.currentNode.id, 0);
+      }
+      executeConnection(nodeId, outputIndex) {
+        const connection = this.connections.find(c => c.sourceId === nodeId && c.sourceSlot === outputIndex);
+        if (connection) {
+          const nextNode = this.nodes.find(n => n.id === connection.targetId);
+          if (nextNode) this.executeNode(nextNode);
+        }
+      }
+    }
+    const container = document.querySelector('#game-container');
+    const engine = new GalgameEngine(container);
+    window.addEventListener('load', async () => {
+      const progress = document.querySelector('#loading-progress');
+      progress.style.width = '100%';
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // 隐藏加载界面
+      document.querySelector('#loading-screen').classList.add('hidden');
+      
+      // 检查是否有自动存档
+      const saveInfo = engine.getSaveInfo();
+      const btnContinue = document.getElementById('btn-continue');
+      
+      if (saveInfo && saveInfo.exists) {
+        btnContinue.disabled = false;
+        const date = new Date(saveInfo.timestamp);
+        btnContinue.textContent = '继续游戏 (' + date.toLocaleString() + ')';
+      } else {
+        btnContinue.disabled = true;
+        btnContinue.textContent = '继续游戏';
+      }
+      
+      // 显示开始菜单
+      document.getElementById('start-menu').classList.remove('hidden');
+      
+      // 开始游戏按钮
+      document.getElementById('btn-new-game').onclick = async () => {
+        document.getElementById('start-menu').classList.add('hidden');
+        await engine.start();
+      };
+      
+      // 继续游戏按钮
+      document.getElementById('btn-continue').onclick = async () => {
+        document.getElementById('start-menu').classList.add('hidden');
+        const savedNode = await engine.loadProgress();
+        if (savedNode) {
+          // 恢复并显示当前状态，但不自动继续
+          await engine.restoreAndShowState(savedNode);
+          console.log('进度已加载:', savedNode);
+          console.log('当前变量:', engine.variables);
+        } else {
+          await engine.start();
+        }
+      };
+    });
+  <\/script>
+</body>
+</html>`}async downloadHtml(){var r;const e=await this.exportHtml(),t=Array.from(this.stateManager.getNodes().values()).find(s=>s.type==="start"),a=((r=t==null?void 0:t.data)==null?void 0:r.title)||"game";x.downloadFile(e,`${a.replace(/\s+/g,"_")}.html`),console.log("✓ HTML游戏已导出")}async exportJson(){var r;const e=await this.exportWorkflow(),t=JSON.stringify(e,null,2),a=((r=e.metadata)==null?void 0:r.title)||"game";x.downloadFile(t,`${a.replace(/\s+/g,"_")}.json`,"application/json"),console.log("✓ JSON工作流已导出")}async importJson(){const e=document.createElement("input");e.type="file",e.accept=".json",e.onchange=async t=>{var r;const a=(r=t.target.files)==null?void 0:r[0];if(a)try{const s=await x.readFile(a);await this.importFromJsonData(s)}catch(s){console.error("导入失败:",s),alert("导入失败："+s.message)}},e.click()}async importFromJsonData(e){try{const t=JSON.parse(e);if(!t.nodes||!t.connections)throw new Error("无效的工作流数据格式");this.stateManager.clearAll(),this.resourceManager.clearAll(),this.characterLibrary.clearAll();let a=0;for(const s of t.nodes){const o={id:s.id,type:s.type,x:s.x,y:s.y,data:s.data||{},inputs:s.inputs||[],outputs:s.outputs||[]};this.stateManager.setNode(s.id,o);const n=parseInt(s.id.replace(/\D/g,""));n>a&&(a=n)}this.stateManager.setNodeIdCounter(a+1);const r=[];for(const s of t.connections||[])r.push({id:s.id||`conn_${Date.now()}_${Math.random()}`,sourceId:s.sourceId,sourceSlot:s.sourceSlot,targetId:s.targetId,targetSlot:s.targetSlot});if(this.stateManager.setConnections(r),t.resources&&this.resourceManager.importResources(t.resources),t.characters&&this.characterLibrary.importLibrary(t.characters),t.globalResources&&this.characterLibrary.importGlobalResources(t.globalResources),t.nodes.length>0){const s=t.nodes.reduce((n,i)=>Math.min(n,i.x),1/0),o=t.nodes.reduce((n,i)=>Math.min(n,i.y),1/0);this.stateManager.setOffset([-s+100,-o+100])}console.log("✓ JSON工作流已导入")}catch(t){throw console.error("导入失败:",t),t}}}class Y{constructor(e){d(this,"characters",new Map);d(this,"resourceManager");d(this,"onCharacterAdd");d(this,"onCharacterUpdate");d(this,"onCharacterRemove");d(this,"globalResources",{backgrounds:new Map,bgm:new Map,sfx:new Map,voice:new Map,endings:new Map});this.resourceManager=e}async createCharacter(e,t){var s;const a=this.sanitizeId(e),r={id:a,name:e,description:t,expressions:[],createTime:Date.now()};return this.characters.set(a,r),(s=this.onCharacterAdd)==null||s.call(this,r),console.log("✓ 角色已创建:",r),r}async addExpression(e,t,a){var i;const r=this.characters.get(e);if(!r)throw new Error(`角色不存在: ${e}`);const s=await this.resourceManager.addResource(a,"character",`${e}_${t}`),o=r.expressions.length===0,n={id:`${e}_${t}`,name:t,resourceId:s.id,isDefault:o};return r.expressions.push(n),o&&(r.defaultExpressionId=n.id),(i=this.onCharacterUpdate)==null||i.call(this,r),console.log("✓ 表情已添加:",n),n}setDefaultExpression(e,t){var s;const a=this.characters.get(e);if(!a)return!1;const r=a.expressions.find(o=>o.id===t);return r?(a.expressions.forEach(o=>o.isDefault=!1),r.isDefault=!0,a.defaultExpressionId=t,(s=this.onCharacterUpdate)==null||s.call(this,a),console.log("✓ 默认表情已设置:",t),!0):!1}removeExpression(e,t){var o;const a=this.characters.get(e);if(!a)return!1;const r=a.expressions.findIndex(n=>n.id===t);if(r===-1)return!1;const s=a.expressions[r];if(s.isDefault){const n=a.expressions.filter(i=>i.id!==t);n.length>0?(n[0].isDefault=!0,a.defaultExpressionId=n[0].id):a.defaultExpressionId=void 0}return a.expressions.splice(r,1),this.resourceManager.removeResource(s.resourceId),(o=this.onCharacterUpdate)==null||o.call(this,a),console.log("✓ 表情已删除:",t),!0}getCharacter(e){return this.characters.get(e)}getAllCharacters(){return Array.from(this.characters.values())}getCharacterList(){return Array.from(this.characters.values()).map(e=>({id:e.id,name:e.name}))}getCharacterExpressions(e){const t=this.characters.get(e),a=t==null?void 0:t.expressions;return Array.isArray(a)?a:(console.error(`[CharacterLibrary] Character ${e} has non-array expressions:`,a),[])}getExpressionList(e){const t=this.characters.get(e);return t?t.expressions.map(a=>({id:a.id,name:a.name})):[]}getDefaultExpression(e){const t=this.characters.get(e);if(!(!t||!t.defaultExpressionId))return t.expressions.find(a=>a.id===t.defaultExpressionId)}getExpressionResource(e){for(const t of this.characters.values()){const a=t.expressions.find(r=>r.id===e);if(a)return this.resourceManager.getResource(a.resourceId)}}updateCharacter(e,t){var r;const a=this.characters.get(e);return a?(Object.assign(a,t),(r=this.onCharacterUpdate)==null||r.call(this,a),console.log("✓ 角色已更新:",a),!0):!1}removeCharacter(e){var r;const t=this.characters.get(e);if(!t)return!1;t.expressions.forEach(s=>{this.resourceManager.removeResource(s.resourceId)});const a=this.characters.delete(e);return a&&((r=this.onCharacterRemove)==null||r.call(this,e)),console.log("✓ 角色已删除:",e),a}clearAll(){this.characters.forEach(e=>{e.expressions.forEach(t=>{this.resourceManager.removeResource(t.resourceId)})}),this.characters.clear()}exportLibrary(){const e={};return this.characters.forEach(t=>{e[t.id]=t}),e}importLibrary(e){Object.entries(e).forEach(([t,a])=>{if(a.expressions&&!Array.isArray(a.expressions)){const r=a.expressions;a.expressions=Object.values(r)}Array.isArray(a.expressions)||(console.warn(`[CharacterLibrary] Character ${t} has invalid expressions data, resetting to empty array`),a.expressions=[]),a.expressions=a.expressions.filter(r=>!r||typeof r!="object"?(console.warn(`[CharacterLibrary] Invalid expression in character ${t}:`,r),!1):!0),this.characters.set(t,a)})}async addGlobalBackground(e,t){const a=await this.resourceManager.addResource(e,"background",t);return this.globalResources.backgrounds.set(t,a),a}async addGlobalBGM(e,t){const a=await this.resourceManager.addResource(e,"bgm",t);return this.globalResources.bgm.set(t,a),a}async addGlobalSFX(e,t){const a=await this.resourceManager.addResource(e,"sfx",t);return this.globalResources.sfx.set(t,a),a}async addGlobalVoice(e,t){const a=await this.resourceManager.addResource(e,"voice",t);return this.globalResources.voice.set(t,a),a}async addGlobalEnding(e,t){const a=await this.resourceManager.addResource(e,"ending",t);return this.globalResources.endings.set(t,a),a}getGlobalBackgroundList(){return Array.from(this.globalResources.backgrounds.entries()).map(([e,t])=>({name:e,resource:t}))}getGlobalBGMList(){return Array.from(this.globalResources.bgm.entries()).map(([e,t])=>({name:e,resource:t}))}getGlobalSFXList(){return Array.from(this.globalResources.sfx.entries()).map(([e,t])=>({name:e,resource:t}))}getGlobalVoiceList(){return Array.from(this.globalResources.voice.entries()).map(([e,t])=>({name:e,resource:t}))}getGlobalEndingList(){return Array.from(this.globalResources.endings.entries()).map(([e,t])=>({name:e,resource:t}))}getGlobalResource(e,t){let a;switch(e){case"background":a=this.globalResources.backgrounds;break;case"bgm":a=this.globalResources.bgm;break;case"sfx":a=this.globalResources.sfx;break;case"voice":a=this.globalResources.voice;break;case"ending":a=this.globalResources.endings;break}return a==null?void 0:a.get(t)}removeGlobalResource(e,t){let a;switch(e){case"background":a=this.globalResources.backgrounds;break;case"bgm":a=this.globalResources.bgm;break;case"sfx":a=this.globalResources.sfx;break;case"voice":a=this.globalResources.voice;break;case"ending":a=this.globalResources.endings;break}if(!a)return console.error(`无法找到${e}的资源Map`),!1;const r=a.get(t);r&&this.resourceManager.removeResource(r.id);const s=a.delete(t);return s?console.log(`✓ 全局资源已删除: ${e}/${t}`):console.warn(`删除失败：未找到资源 ${e}/${t}`),s}exportGlobalResources(){return{backgrounds:Array.from(this.globalResources.backgrounds.entries()).reduce((e,[t,a])=>(e[t]=a,e),{}),bgms:Array.from(this.globalResources.bgm.entries()).reduce((e,[t,a])=>(e[t]=a,e),{}),sfxs:Array.from(this.globalResources.sfx.entries()).reduce((e,[t,a])=>(e[t]=a,e),{}),voices:Array.from(this.globalResources.voice.entries()).reduce((e,[t,a])=>(e[t]=a,e),{}),endings:Array.from(this.globalResources.endings.entries()).reduce((e,[t,a])=>(e[t]=a,e),{})}}importGlobalResources(e){e.backgrounds&&Object.entries(e.backgrounds).forEach(([t,a])=>{this.globalResources.backgrounds.set(t,a)}),e.bgms&&Object.entries(e.bgms).forEach(([t,a])=>{this.globalResources.bgm.set(t,a)}),e.sfxs&&Object.entries(e.sfxs).forEach(([t,a])=>{this.globalResources.sfx.set(t,a)}),e.voices&&Object.entries(e.voices).forEach(([t,a])=>{this.globalResources.voice.set(t,a)}),e.endings&&Object.entries(e.endings).forEach(([t,a])=>{this.globalResources.endings.set(t,a)})}clearGlobalResources(){this.globalResources.backgrounds.clear(),this.globalResources.bgm.clear(),this.globalResources.sfx.clear(),this.globalResources.voice.clear(),this.globalResources.endings.clear()}onCharacterAdded(e){this.onCharacterAdd=e}onCharacterUpdated(e){this.onCharacterUpdate=e}onCharacterRemoved(e){this.onCharacterRemove=e}sanitizeId(e){return e.replace(/[^\w\u4e00-\u9fa5]/g,"")}generateUniqueId(e){const t=Date.now().toString(36),a=Math.random().toString(36).substring(2,8);return`${e}_${t}_${a}`}}class J{constructor(e){d(this,"container");d(this,"overlay");d(this,"panel");d(this,"resourceManager");d(this,"characterLibrary");d(this,"onClose");this.container=e.container,this.resourceManager=e.resourceManager,this.characterLibrary=e.characterLibrary,this.onClose=e.onClose,this.createPanel(),this.render(),this.setupEventListeners()}createPanel(){this.overlay=document.createElement("div"),this.overlay.className="resource-manager-overlay",this.overlay.style.cssText=`
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    `,this.panel=document.createElement("div"),this.panel.className="resource-manager-panel",this.panel.style.cssText=`
+      width: 900px;
+      max-width: 95vw;
+      max-height: 90vh;
+      background: #1e1e1e;
+      border: 1px solid #3a3a3c;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    `,this.overlay.appendChild(this.panel),document.body.appendChild(this.overlay)}render(){this.panel.innerHTML=`
+      <div class="resource-manager-header">
+        <h2 style="margin: 0; color: #ffffff; font-size: 20px; font-weight: 600;">资源管理器</h2>
+        <button class="resource-manager-close">&times;</button>
+      </div>
+
+      <div class="resource-manager-tabs">
+        <button class="resource-tab active" data-tab="background">🖼️ 背景</button>
+        <button class="resource-tab" data-tab="character">👤 角色</button>
+        <button class="resource-tab" data-tab="bgm">🎵 背景音乐</button>
+        <button class="resource-tab" data-tab="sfx">🔊 音效</button>
+        <button class="resource-tab" data-tab="ending">🏆 结局</button>
+      </div>
+
+      <div class="resource-manager-content">
+        <div class="resource-tab-content active" id="tab-background"></div>
+        <div class="resource-tab-content" id="tab-character"></div>
+        <div class="resource-tab-content" id="tab-bgm"></div>
+        <div class="resource-tab-content" id="tab-sfx"></div>
+        <div class="resource-tab-content" id="tab-ending"></div>
+      </div>
+
+      <div class="resource-manager-footer">
+        <div class="resource-stats"></div>
+        <button class="resource-manager-btn-done">完成</button>
+      </div>
+    `,this.injectStyles(),this.renderBackgrounds(),this.renderCharacters(),this.renderBGM(),this.renderSfx(),this.renderEndings(),this.updateStats()}injectStyles(){const e=document.createElement("style");e.textContent=`
+      .resource-manager-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        border-bottom: 1px solid #3a3a3c;
+        background: #2a2a2a;
+      }
+
+      .resource-manager-close {
+        background: none;
+        border: none;
+        color: #a1a1aa;
+        font-size: 28px;
+        cursor: pointer;
+        padding: 0;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: color 0.2s;
+        line-height: 1;
+      }
+
+      .resource-manager-close:hover {
+        color: #ffffff;
+      }
+
+      .resource-manager-tabs {
+        display: flex;
+        background: #2a2a2a;
+        border-bottom: 1px solid #3a3a3c;
+        padding: 0 16px;
+      }
+
+      .resource-tab {
+        background: none;
+        border: none;
+        color: #a1a1aa;
+        padding: 12px 16px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        transition: all 0.2s;
+        position: relative;
+      }
+
+      .resource-tab:hover {
+        color: #ffffff;
+      }
+
+      .resource-tab.active {
+        color: #4a9eff;
+      }
+
+      .resource-tab.active::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: #4a9eff;
+      }
+
+      .resource-manager-content {
+        flex: 1;
+        overflow-y: auto;
+        min-height: 0;
+        background: #1e1e1e;
+      }
+
+      .resource-tab-content {
+        display: none;
+        padding: 20px;
+      }
+
+      .resource-tab-content.active {
+        display: block;
+      }
+
+      .resource-manager-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 20px;
+        border-top: 1px solid #3a3a3c;
+        background: #2a2a2a;
+      }
+
+      .resource-stats {
+        color: #a1a1aa;
+        font-size: 12px;
+      }
+
+      .resource-manager-btn-done {
+        background: #4a9eff;
+        color: #ffffff;
+        border: none;
+        padding: 8px 24px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        transition: background 0.2s;
+      }
+
+      .resource-manager-btn-done:hover {
+        background: #3a8edf;
+      }
+
+      .resource-add-section {
+        background: #2a2a2a;
+        border: 2px dashed #3a3a3c;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        text-align: center;
+      }
+
+      .resource-add-section:hover {
+        border-color: #4a9eff;
+      }
+
+      .resource-add-btn {
+        background: #4a9eff;
+        color: #ffffff;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: background 0.2s;
+      }
+
+      .resource-add-btn:hover {
+        background: #3a8edf;
+      }
+
+      .resource-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 16px;
+      }
+
+      .resource-item {
+        background: #2a2a2a;
+        border: 1px solid #3a3a3c;
+        border-radius: 8px;
+        overflow: hidden;
+        transition: all 0.2s;
+      }
+
+      .resource-item:hover {
+        border-color: #4a9eff;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      }
+
+      .resource-preview {
+        width: 100%;
+        height: 120px;
+        background: #171718;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+
+      .resource-preview img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .resource-preview-audio {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: #a1a1aa;
+        font-size: 48px;
+      }
+
+      .resource-info {
+        padding: 12px;
+      }
+
+      .resource-name {
+        color: #ffffff;
+        font-size: 13px;
+        font-weight: 500;
+        margin-bottom: 4px;
+        word-break: break-all;
+      }
+
+      .resource-meta {
+        color: #a1a1aa;
+        font-size: 11px;
+      }
+
+      .resource-actions {
+        display: flex;
+        gap: 8px;
+        padding: 0 12px 12px;
+      }
+
+      .resource-action-btn {
+        flex: 1;
+        padding: 6px 12px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        transition: background 0.2s;
+      }
+
+      .resource-btn-edit {
+        background: #3a8edf;
+        color: #ffffff;
+      }
+
+      .resource-btn-edit:hover {
+        background: #2a7edf;
+      }
+
+      .resource-btn-delete {
+        background: #ef4444;
+        color: #ffffff;
+      }
+
+      .resource-btn-delete:hover {
+        background: #dc2626;
+      }
+
+      .character-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 16px;
+      }
+
+      .character-item {
+        background: #2a2a2a;
+        border: 1px solid #3a3a3c;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .character-header {
+        padding: 12px;
+        background: #252526;
+        border-bottom: 1px solid #3a3a3c;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .character-name {
+        color: #ffffff;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .character-expressions {
+        padding: 12px;
+        max-height: 300px;
+        overflow-y: auto;
+      }
+
+      .expression-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px;
+        background: #1e1e1e;
+        border-radius: 6px;
+        margin-bottom: 8px;
+      }
+
+      .expression-thumb {
+        width: 60px;
+        height: 60px;
+        border-radius: 4px;
+        background: #171718;
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+
+      .expression-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .expression-info {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .expression-name {
+        color: #ffffff;
+        font-size: 12px;
+        font-weight: 500;
+        margin-bottom: 2px;
+      }
+
+      .expression-default {
+        color: #4a9eff;
+        font-size: 11px;
+      }
+
+      .expression-actions {
+        display: flex;
+        gap: 4px;
+      }
+
+      .expression-action-btn {
+        padding: 4px 8px;
+        border: none;
+        border-radius: 3px;
+        cursor: pointer;
+        font-size: 11px;
+        transition: background 0.2s;
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 40px;
+        color: #a1a1aa;
+      }
+
+      .empty-state-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+      }
+    `,document.head.appendChild(e)}setupEventListeners(){var e,t;(e=this.panel.querySelector(".resource-manager-close"))==null||e.addEventListener("click",()=>this.close()),this.overlay.addEventListener("click",a=>{a.target===this.overlay&&this.close()}),(t=this.panel.querySelector(".resource-manager-btn-done"))==null||t.addEventListener("click",()=>this.close()),this.panel.querySelectorAll(".resource-tab").forEach(a=>{a.addEventListener("click",r=>{const o=r.currentTarget.dataset.tab;o&&this.switchTab(o)})})}switchTab(e){this.panel.querySelectorAll(".resource-tab").forEach(t=>{t.classList.toggle("active",t.dataset.tab===e)}),this.panel.querySelectorAll(".resource-tab-content").forEach(t=>{t.classList.toggle("active",t.id===`tab-${e}`)})}updateStats(){const e=this.panel.querySelector(".resource-stats");if(!e)return;const t=this.characterLibrary.getGlobalBackgroundList().length,a=this.characterLibrary.getAllCharacters().length,r=this.characterLibrary.getGlobalBGMList().length,s=this.characterLibrary.getGlobalSFXList().length,o=this.characterLibrary.getGlobalEndingList().length;e.textContent=`背景: ${t} | 角色: ${a} | 音乐: ${r} | 音效: ${s} | 结局: ${o}`}renderBackgrounds(){var r;const e=this.panel.querySelector("#tab-background");if(!e)return;const t=this.characterLibrary.getGlobalBackgroundList();let a=`
+      <div class="resource-add-section">
+        <button class="resource-add-btn" id="add-background-btn">
+          ➕ 上传背景图片
+        </button>
+      </div>
+    `;t.length===0?a+=`
+        <div class="empty-state">
+          <div class="empty-state-icon">🖼️</div>
+          <p>暂无背景图片</p>
+          <p style="font-size: 12px; margin-top: 8px;">点击上方按钮添加</p>
+        </div>
+      `:(a+='<div class="resource-list">',t.forEach(({name:s,resource:o})=>{a+=`
+          <div class="resource-item" data-resource-name="${s}">
+            <div class="resource-preview">
+              <img src="${o.url}" alt="${s}">
+            </div>
+            <div class="resource-info">
+              <div class="resource-name">${s}</div>
+              <div class="resource-meta">${this.formatFileSize(o.size)}</div>
+            </div>
+            <div class="resource-actions">
+              <button class="resource-action-btn resource-btn-delete" data-action="delete" data-name="${s}">删除</button>
+            </div>
+          </div>
+        `}),a+="</div>"),e.innerHTML=a,(r=e.querySelector("#add-background-btn"))==null||r.addEventListener("click",()=>this.handleAddBackground()),e.querySelectorAll(".resource-btn-delete").forEach(s=>{s.addEventListener("click",o=>{const i=o.currentTarget.dataset.name;i&&this.handleDeleteBackground(i)})})}renderCharacters(){var r;const e=this.panel.querySelector("#tab-character");if(!e)return;const t=this.characterLibrary.getAllCharacters();let a=`
+      <div class="resource-add-section">
+        <button class="resource-add-btn" id="add-character-btn">
+          ➕ 创建角色
+        </button>
+      </div>
+    `;t.length===0?a+=`
+        <div class="empty-state">
+          <div class="empty-state-icon">👤</div>
+          <p>暂无角色</p>
+          <p style="font-size: 12px; margin-top: 8px;">点击上方按钮创建</p>
+        </div>
+      `:(a+='<div class="character-list">',t.forEach(s=>{const o=s.expressions;a+=`
+          <div class="character-item" data-character-id="${s.id}">
+            <div class="character-header">
+              <span class="character-name">${s.name}</span>
+              <button class="resource-action-btn resource-btn-delete" data-action="delete-char" data-id="${s.id}">删除</button>
+            </div>
+            <div class="character-expressions">
+              ${o.length===0?'<div style="color: #a1a1aa; font-size: 12px;">暂无表情</div>':""}
+              ${o.map(n=>{var i;return`
+                <div class="expression-item">
+                  <div class="expression-thumb">
+                    <img src="${((i=this.characterLibrary.getExpressionResource(n.id))==null?void 0:i.url)||""}" alt="${n.name}">
+                  </div>
+                  <div class="expression-info">
+                    <div class="expression-name">${n.name}</div>
+                    ${n.isDefault?'<div class="expression-default">默认表情</div>':""}
+                  </div>
+                  <div class="expression-actions">
+                    <button class="expression-action-btn resource-btn-edit" data-action="set-default" data-char="${s.id}" data-expr="${n.id}">设为默认</button>
+                    <button class="expression-action-btn resource-btn-delete" data-action="delete-expr" data-char="${s.id}" data-expr="${n.id}">删除</button>
+                  </div>
+                </div>
+              `}).join("")}
+              <button class="resource-add-btn" style="width: 100%; font-size: 12px; padding: 8px;" data-action="add-expr" data-char="${s.id}">
+                ➕ 添加表情
+              </button>
+            </div>
+          </div>
+        `}),a+="</div>"),e.innerHTML=a,(r=e.querySelector("#add-character-btn"))==null||r.addEventListener("click",()=>this.handleAddCharacter()),e.querySelectorAll('.resource-btn-delete[data-action="delete-char"]').forEach(s=>{s.addEventListener("click",o=>{const i=o.currentTarget.dataset.id;i&&this.handleDeleteCharacter(i)})}),e.querySelectorAll('.expression-action-btn[data-action="set-default"]').forEach(s=>{s.addEventListener("click",o=>{const n=o.currentTarget,i=n.dataset.char,c=n.dataset.expr;i&&c&&this.handleSetDefaultExpression(i,c)})}),e.querySelectorAll('.expression-action-btn[data-action="delete-expr"]').forEach(s=>{s.addEventListener("click",o=>{const n=o.currentTarget,i=n.dataset.char,c=n.dataset.expr;i&&c&&this.handleDeleteExpression(i,c)})}),e.querySelectorAll('button[data-action="add-expr"]').forEach(s=>{s.addEventListener("click",o=>{const i=o.currentTarget.dataset.char;i&&this.handleAddExpression(i)})})}renderBGM(){var r;const e=this.panel.querySelector("#tab-bgm");if(!e)return;const t=this.characterLibrary.getGlobalBGMList();let a=`
+      <div class="resource-add-section">
+        <button class="resource-add-btn" id="add-bgm-btn">
+          ➕ 上传背景音乐
+        </button>
+      </div>
+    `;t.length===0?a+=`
+        <div class="empty-state">
+          <div class="empty-state-icon">🎵</div>
+          <p>暂无背景音乐</p>
+          <p style="font-size: 12px; margin-top: 8px;">点击上方按钮添加</p>
+        </div>
+      `:(a+='<div class="resource-list">',t.forEach(({name:s,resource:o})=>{a+=`
+          <div class="resource-item" data-resource-name="${s}">
+            <div class="resource-preview resource-preview-audio">🎵</div>
+            <div class="resource-info">
+              <div class="resource-name">${s}</div>
+              <div class="resource-meta">${this.formatFileSize(o.size)}</div>
+            </div>
+            <div class="resource-actions">
+              <button class="resource-action-btn resource-btn-delete" data-action="delete" data-name="${s}">删除</button>
+            </div>
+          </div>
+        `}),a+="</div>"),e.innerHTML=a,(r=e.querySelector("#add-bgm-btn"))==null||r.addEventListener("click",()=>this.handleAddBGM()),e.querySelectorAll(".resource-btn-delete").forEach(s=>{s.addEventListener("click",o=>{const i=o.currentTarget.dataset.name;i&&this.handleDeleteBGM(i)})})}renderSfx(){var r;const e=this.panel.querySelector("#tab-sfx");if(!e)return;const t=this.characterLibrary.getGlobalSFXList();let a=`
+      <div class="resource-add-section">
+        <button class="resource-add-btn" id="add-sfx-btn">
+          ➕ 上传音效
+        </button>
+      </div>
+    `;t.length===0?a+=`
+        <div class="empty-state">
+          <div class="empty-state-icon">🔊</div>
+          <p>暂无音效</p>
+          <p style="font-size: 12px; margin-top: 8px;">点击上方按钮添加</p>
+        </div>
+      `:(a+='<div class="resource-list">',t.forEach(({name:s,resource:o})=>{a+=`
+          <div class="resource-item" data-resource-name="${s}">
+            <div class="resource-preview resource-preview-audio">🔊</div>
+            <div class="resource-info">
+              <div class="resource-name">${s}</div>
+              <div class="resource-meta">${this.formatFileSize(o.size)}</div>
+            </div>
+            <div class="resource-actions">
+              <button class="resource-action-btn resource-btn-delete" data-action="delete" data-name="${s}">删除</button>
+            </div>
+          </div>
+        `}),a+="</div>"),e.innerHTML=a,(r=e.querySelector("#add-sfx-btn"))==null||r.addEventListener("click",()=>this.handleAddSfx()),e.querySelectorAll(".resource-btn-delete").forEach(s=>{s.addEventListener("click",o=>{const i=o.currentTarget.dataset.name;i&&this.handleDeleteSfx(i)})})}renderEndings(){var r;const e=this.panel.querySelector("#tab-ending");if(!e)return;const t=this.characterLibrary.getGlobalEndingList();let a=`
+      <div class="resource-add-section">
+        <button class="resource-add-btn" id="add-ending-btn">
+          ➕ 上传解锁图片
+        </button>
+      </div>
+    `;t.length===0?a+=`
+        <div class="empty-state">
+          <div class="empty-state-icon">🏆</div>
+          <p>暂无解锁图片</p>
+          <p style="font-size: 12px; margin-top: 8px;">点击上方按钮添加</p>
+        </div>
+      `:(a+='<div class="resource-list">',t.forEach(({name:s,resource:o})=>{a+=`
+          <div class="resource-item" data-resource-name="${s}">
+            <div class="resource-preview">
+              <img src="${o.url}" alt="${s}">
+            </div>
+            <div class="resource-info">
+              <div class="resource-name">${s}</div>
+              <div class="resource-meta">${this.formatFileSize(o.size)}</div>
+            </div>
+            <div class="resource-actions">
+              <button class="resource-action-btn resource-btn-delete" data-action="delete" data-name="${s}">删除</button>
+            </div>
+          </div>
+        `}),a+="</div>"),e.innerHTML=a,(r=e.querySelector("#add-ending-btn"))==null||r.addEventListener("click",()=>this.handleAddEnding()),e.querySelectorAll(".resource-btn-delete").forEach(s=>{s.addEventListener("click",o=>{const i=o.currentTarget.dataset.name;i&&this.handleDeleteEnding(i)})})}async handleAddBackground(){try{const e=await m.openFileDialog(m.getImageAcceptTypes(),!0);for(const t of e){const a=t.name.replace(/\.[^/.]+$/,"");await this.characterLibrary.addGlobalBackground(t,a)}this.renderBackgrounds(),this.updateStats()}catch(e){console.error("添加背景失败:",e),alert(`添加背景失败: ${e}`)}}handleDeleteBackground(e){confirm(`确定要删除背景 "${e}" 吗？`)&&(this.characterLibrary.removeGlobalResource("background",e),this.renderBackgrounds(),this.updateStats())}async handleAddCharacter(){const e=prompt("请输入角色名称：");if(e)try{await this.characterLibrary.createCharacter(e),this.renderCharacters(),this.updateStats()}catch(t){console.error("创建角色失败:",t),alert(`创建角色失败: ${t}`)}}handleDeleteCharacter(e){const t=this.characterLibrary.getCharacter(e);t&&confirm(`确定要删除角色 "${t.name}" 及其所有表情吗？`)&&(this.characterLibrary.removeCharacter(e),this.renderCharacters(),this.updateStats())}async handleAddExpression(e){try{const t=await m.openFileDialog(m.getImageAcceptTypes(),!1);if(t.length===0)return;const a=t[0],r=prompt("请输入表情名称：",a.name.replace(/\.[^/.]+$/,""));if(!r)return;await this.characterLibrary.addExpression(e,r,a),this.renderCharacters(),this.updateStats()}catch(t){console.error("添加表情失败:",t),alert(`添加表情失败: ${t}`)}}handleSetDefaultExpression(e,t){this.characterLibrary.setDefaultExpression(e,t),this.renderCharacters()}handleDeleteExpression(e,t){confirm("确定要删除这个表情吗？")&&(this.characterLibrary.removeExpression(e,t),this.renderCharacters(),this.updateStats())}async handleAddBGM(){try{const e=await m.openFileDialog(m.getAudioAcceptTypes(),!0);for(const t of e){const a=t.name.replace(/\.[^/.]+$/,"");await this.characterLibrary.addGlobalBGM(t,a)}this.renderBGM(),this.updateStats()}catch(e){console.error("添加BGM失败:",e),alert(`添加BGM失败: ${e}`)}}handleDeleteBGM(e){confirm(`确定要删除BGM "${e}" 吗？`)&&(this.characterLibrary.removeGlobalResource("bgm",e),this.renderBGM(),this.updateStats())}async handleAddSfx(){try{const e=await m.openFileDialog(m.getAudioAcceptTypes(),!0);for(const t of e){const a=t.name.replace(/\.[^/.]+$/,"");await this.characterLibrary.addGlobalSFX(t,a)}this.renderSfx(),this.updateStats()}catch(e){console.error("添加音效失败:",e),alert(`添加音效失败: ${e}`)}}handleDeleteSfx(e){confirm(`确定要删除音效 "${e}" 吗？`)&&(this.characterLibrary.removeGlobalResource("sfx",e),this.renderSfx(),this.updateStats())}async handleAddEnding(){try{const e=await m.openFileDialog(m.getImageAcceptTypes(),!0);for(const t of e){const a=t.name.replace(/\.[^/.]+$/,"");await this.characterLibrary.addGlobalEnding(t,a)}this.renderEndings(),this.updateStats()}catch(e){console.error("添加解锁图片失败:",e),alert(`添加解锁图片失败: ${e}`)}}handleDeleteEnding(e){confirm(`确定要删除解锁图片 "${e}" 吗？`)&&(this.characterLibrary.removeGlobalResource("ending",e),this.renderEndings(),this.updateStats())}formatFileSize(e){return m.formatFileSize(e)}close(){var e;this.overlay.remove(),(e=this.onClose)==null||e.call(this)}destroy(){this.close()}}class K{constructor(e){d(this,"container");d(this,"canvas");d(this,"stateManager");d(this,"nodeManager");d(this,"renderManager");d(this,"interactionManager");d(this,"propertyEditorManager");d(this,"dataPersistence");d(this,"importExportManager");d(this,"resourceManager");d(this,"characterLibrary");this.container=e,this.canvas=document.createElement("canvas"),this.canvas.style.cssText="width: 100%; height: 100%; display: block;",e.appendChild(this.canvas),this.resourceManager=new m,this.characterLibrary=new Y(this.resourceManager),this.stateManager=new O,this.nodeManager=new G(this.stateManager,e),this.renderManager=new q(this.canvas,this.stateManager),this.propertyEditorManager=new V(this.stateManager,e,this.characterLibrary),this.dataPersistence=new W(this.stateManager),this.importExportManager=new X(this.stateManager,this.resourceManager,this.characterLibrary),this.interactionManager=new F(this.stateManager,this.container,this.canvas,{onRenderRequested:()=>this.render(),onNodeDoubleClicked:t=>this.propertyEditorManager.openPropertyPanel(t)}),this.renderManager.setupCanvas(),this.setupResourceSelectorEvents(),this.setupDragAndDrop(),this.render()}addNode(e,t,a){const r=this.nodeManager.addNode(e,t,a);return this.render(),r}clear(){this.nodeManager.clearAll(),this.resourceManager.clearAll(),this.characterLibrary.clearAll(),this.render(),console.log("✓ 工作流已清空，包括所有资源")}getAllNodes(){return this.nodeManager.getAllNodes()}getAllConnections(){return this.stateManager.getConnections()}getSelectedNodeIds(){return this.nodeManager.getSelectedNodeIds()}saveGraph(){this.dataPersistence.saveGraph()}loadGraph(){this.dataPersistence.loadGraph(),this.render()}getResourceManager(){return this.resourceManager}getCharacterLibrary(){return this.characterLibrary}openResourceManager(){new J({container:this.container,resourceManager:this.resourceManager,characterLibrary:this.characterLibrary,onClose:()=>{console.log("资源管理器已关闭")}})}async exportWorkflow(){return await this.importExportManager.exportWorkflow()}async exportHtml(){return this.importExportManager.exportHtml()}async downloadHtml(){await this.importExportManager.downloadHtml()}async exportJson(){await this.importExportManager.exportJson()}async importJson(){await this.importExportManager.importJson(),this.render()}async importFromJsonString(e){await this.importExportManager.importFromJsonData(e),this.render()}render(){this.renderManager.render()}setupResourceSelectorEvents(){this.container.addEventListener("openCharacterSelector",e=>{const{propertyName:t}=e.detail,a=this.propertyEditorManager.getEditingNodeId();console.log(`[SimpleWorkflowEditor] openCharacterSelector event: propertyName=${t}, editingNodeId=${a}`),new S(this.container,{characterLibrary:this.characterLibrary,mode:"character",onSelect:r=>{console.log(`[SimpleWorkflowEditor] Character selected: characterId=${r}`),a&&this.propertyEditorManager.updateNodeProperty(a,t,r)}})}),this.container.addEventListener("openExpressionSelector",e=>{var o;const{propertyName:t}=e.detail,a=this.propertyEditorManager.getEditingNodeId(),r=a?this.stateManager.getNode(a):null,s=(o=r==null?void 0:r.data)==null?void 0:o.characterId;if(console.log(`[SimpleWorkflowEditor] openExpressionSelector event: propertyName=${t}, editingNodeId=${a}, characterId=${s}`),!s){alert("请先选择角色");return}new S(this.container,{characterLibrary:this.characterLibrary,mode:"expression",characterId:s,onSelect:n=>{console.log(`[SimpleWorkflowEditor] Expression selected: expressionId=${n}`),a&&this.propertyEditorManager.updateNodeProperty(a,t,n)}})}),this.container.addEventListener("openResourceSelector",e=>{const{propertyName:t,resourceType:a}=e.detail,r=this.propertyEditorManager.getEditingNodeId();console.log(`[SimpleWorkflowEditor] openResourceSelector event: propertyName=${t}, resourceType=${a}, editingNodeId=${r}`),new S(this.container,{characterLibrary:this.characterLibrary,mode:a,onSelect:s=>{console.log(`[SimpleWorkflowEditor] Resource selected: resourceName=${s}`),r&&this.propertyEditorManager.updateNodeProperty(r,t,s)}})})}setupDragAndDrop(){const e=document.getElementById("editor-container");if(!e){console.warn("Editor container not found");return}e.addEventListener("dragover",t=>{t.preventDefault(),t.dataTransfer.dropEffect="copy",e.style.outline="2px dashed #4a9eff"}),e.addEventListener("dragleave",()=>{e.style.outline=""}),e.addEventListener("drop",this.handleCanvasDrop.bind(this))}async handleCanvasDrop(e){var l;e.preventDefault();const t=document.getElementById("editor-container");if(!t)return;t.style.outline="";const a=(l=e.dataTransfer)==null?void 0:l.files;if(a&&a.length>0){const u=a[0];if(u.name.endsWith(".json")){try{const p=await this.readFileContent(u);await this.importFromJsonString(p),alert("✓ JSON文件已导入！")}catch(p){console.error("导入JSON文件失败:",p),alert(`导入JSON文件失败: ${p}`)}return}}const r=e.dataTransfer.getData("application/node-type");if(!r){console.warn("No node type in drag data");return}const s=t.getBoundingClientRect(),o=e.clientX-s.left,n=e.clientY-s.top,i=this.interactionManager.screenToGraph(o,n),c=this.addNode(r,i[0],i[1]);this.animateNodeCreation(c.id),console.log(`✓ 拖拽添加节点: ${r} at (${Math.round(i[0])}, ${Math.round(i[1])})`)}readFileContent(e){return new Promise((t,a)=>{const r=new FileReader;r.onload=()=>t(r.result),r.onerror=()=>a(new Error("文件读取失败")),r.readAsText(e)})}animateNodeCreation(e){const t=this.stateManager.getNode(e);if(!t)return;const a=t.x,r=t.y;x.animateNodeCreation(t,a,r,()=>{this.render()},()=>{this.render()})}}const I=document.getElementById("editor-container");var M,C,T,L,P,D,R;if(I){let h=function(){document.querySelectorAll(".node-template").forEach(r=>{r.setAttribute("draggable","true"),r.addEventListener("dragstart",s=>{const o=s,n=o.currentTarget.dataset.nodeType;n&&o.dataTransfer&&(o.dataTransfer.setData("application/node-type",n),o.dataTransfer.effectAllowed="copy",o.currentTarget.style.opacity="0.5",console.log(`开始拖拽节点: ${n}`))}),r.addEventListener("dragend",s=>{const o=s;o.currentTarget.style.opacity="1"})})},e=function(){const a=t.getAllNodes(),r=t.getAllConnections(),s=t.getSelectedNodeIds(),o=document.getElementById("status-nodes"),n=document.getElementById("status-connections"),i=document.getElementById("status-selected");o&&(o.textContent=`节点数: ${a.length}`),n&&(n.textContent=`连接数: ${r.length}`),i&&(s.length===0?i.textContent="选中: 无":s.length===1?i.textContent=`选中: ${s[0]}`:i.textContent=`选中: ${s.length} 个节点`)};const t=new K(I);(M=document.getElementById("btn-save"))==null||M.addEventListener("click",()=>{t.saveGraph(),alert("✓ 图谱已保存！")}),(C=document.getElementById("btn-load"))==null||C.addEventListener("click",()=>{t.loadGraph(),alert("✓ 图谱已加载！")}),(T=document.getElementById("btn-clear"))==null||T.addEventListener("click",()=>{confirm("确定要清空所有节点吗？")&&t.clear()}),(L=document.getElementById("btn-resource-manager"))==null||L.addEventListener("click",()=>{t.openResourceManager()}),(P=document.getElementById("btn-export-json"))==null||P.addEventListener("click",async()=>{const a=await t.exportWorkflow(),r=JSON.stringify(a,null,2),s=new Blob([r],{type:"application/json"}),o=URL.createObjectURL(s),n=document.createElement("a");n.href=o,n.download="workflow.json",document.body.appendChild(n),n.click(),document.body.removeChild(n),URL.revokeObjectURL(o),console.log("✓ 工作流数据已导出！"),alert("✓ 工作流数据已导出！")}),(D=document.getElementById("btn-export-html"))==null||D.addEventListener("click",()=>{try{t.downloadHtml()}catch(a){console.error("导出HTML失败:",a),alert(`导出HTML失败: ${a}`)}}),(R=document.getElementById("btn-import-json"))==null||R.addEventListener("click",async()=>{try{await t.importJson()}catch(a){console.error("导入JSON失败:",a),alert(`导入JSON失败: ${a}`)}}),h(),document.querySelectorAll(".node-template").forEach(a=>{a.addEventListener("click",r=>{const s=r.currentTarget.dataset.nodeType;s&&(t.addNode(s),console.log(`✓ 点击添加节点: ${s}`))})}),document.addEventListener("keydown",a=>{a.ctrlKey&&a.key==="s"&&(a.preventDefault(),t.saveGraph(),alert("✓ 图谱已保存！")),a.ctrlKey&&a.key==="o"&&(a.preventDefault(),t.loadGraph(),alert("✓ 图谱已加载！"))}),setInterval(e,500),console.log("✅ 工作流编辑器已加载！"),console.log("📝 操作说明："),console.log("  • 点击左侧节点类型添加节点"),console.log("  • 拖动节点移动位置（自动吸附到网格）"),console.log("  • 从节点的蓝色圆点拖动创建连接"),console.log("  • 选中节点或连接后按 Delete/Backspace 删除"),console.log("  • 滚轮缩放，拖动空白区域平移画布"),console.log("  • Ctrl+S 保存，Ctrl+O 加载"),console.log("  • 导出JSON：导出工作流配置文件"),console.log("  • 导入JSON：从JSON文件导入工作流配置"),console.log("  • 导出HTML游戏：导出可独立运行的HTML游戏")}</script>
+</head>
+<body>
+  <div class="toolbar">
+    <a href="https://cnb.cool/tjc2006/html_galgame" target="_self">
+      <svg id="logo-monochrome" class="ruyi-icon mr-2 transition-transform rotate-0 hover:rotate-180 duration-300 ease-[cubic-bezier(.56,-0.53,.79,1.39)] text-brand bg-transparent cursor-pointer ruyi-icon-logo-monochrome" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" style="width: 32px; height: 32px;">
+        <g fill="none">
+          <path d="M11.5286 1.87149C11.5769 1.73005 11.5356 1.5733 11.4233 1.47452C11.0472 1.14247 10.0965 0.443125 8.66911 0.339708C7.07054 0.223769 6.08089 0.652279 5.58096 0.969951C5.36531 1.10676 5.35326 1.41748 5.55499 1.57422L9.62723 4.73936C9.98617 5.01807 10.5125 4.8604 10.6591 4.43003L11.5286 1.87149Z" fill="currentColor"></path>
+          <path d="M1.49017 11.2664C1.32368 11.3781 1.24855 11.584 1.30235 11.7774C1.45724 12.3339 1.91868 13.4919 3.22833 14.5456C4.53797 15.5992 6.08738 15.7128 6.74962 15.6966C6.94764 15.692 7.12016 15.5617 7.17998 15.3724L9.79046 7.11064C9.97875 6.51425 9.31048 6.01386 8.79154 6.3626L1.49017 11.2664Z" fill="currentColor"></path>
+          <path d="M3.39813 2.54827C3.27013 2.49773 3.12683 2.50607 3.00579 2.57193C2.52256 2.83488 1.28526 3.64506 0.647135 5.30947C0.154627 6.59222 0.328071 8.01085 0.463488 8.70463C0.508009 8.9314 0.747306 9.06218 0.962489 8.97824L8.79485 5.92024C9.35414 5.70181 9.35646 4.91111 8.7981 4.6899L3.39813 2.54827Z" fill="currentColor"></path>
+          <path d="M15.0167 8.46843C15.243 8.62194 15.5528 8.48652 15.5922 8.21569C15.6961 7.49872 15.7861 6.25076 15.371 5.30933C14.8177 4.05487 13.8786 3.28133 13.433 2.9669C13.292 2.86766 13.1019 2.87786 12.9725 2.99241L10.9959 4.74541C10.6732 5.03154 10.7066 5.54492 11.0636 5.78746L15.0167 8.46936V8.46843Z" fill="currentColor"></path>
+          <path d="M9.49413 15.1604C9.47372 15.3937 9.67128 15.5866 9.90409 15.5616C10.6531 15.4813 12.1918 15.1841 13.3447 14.0827C14.467 13.0109 14.832 11.7384 14.9382 11.2319C14.9669 11.0951 14.9326 10.9528 14.8445 10.8442L11.3886 6.57909C11.0143 6.11719 10.2681 6.34535 10.2162 6.93757L9.49366 15.1604H9.49413Z" fill="currentColor"></path>
+        </g>
+      </svg>
+    </a>
+    <button id="btn-resource-manager" style="background: #4ade80; color: #000;">
+      📦 资源管理
+    </button>
+    <div class="toolbar-divider"></div>
+    <button id="btn-save">
+      💾 保存
+    </button>
+    <button id="btn-load">
+      📂 加载
+    </button>
+    <div class="toolbar-divider"></div>
+    <button id="btn-export-json">
+      📄 导出JSON
+    </button>
+    <button id="btn-import-json">
+      📥 导入JSON
+    </button>
+    <button id="btn-export-html" style="background: #4ade80; color: #000;">
+      🎮 导出HTML游戏
+    </button>
+    <div class="toolbar-divider"></div>
+    <button id="btn-clear">
+      🧹 清空
+    </button>
+  </div>
+
+  <div class="main-container">
+    <div class="sidebar">
+      <div class="sidebar-header">节点类型</div>
+      <div class="node-palette">
+        <div class="node-template" data-node-type="start">
+          <span class="node-template-icon">▶️</span>
+          <span class="node-template-label">开始</span>
+        </div>
+        <div class="node-template" data-node-type="dialogue">
+          <span class="node-template-icon">💬</span>
+          <span class="node-template-label">对话</span>
+        </div>
+        <div class="node-template" data-node-type="branch">
+          <span class="node-template-icon">🔀</span>
+          <span class="node-template-label">分支</span>
+        </div>
+        <div class="node-template" data-node-type="scene">
+          <span class="node-template-icon">🖼️</span>
+          <span class="node-template-label">场景</span>
+        </div>
+        <div class="node-template" data-node-type="character">
+          <span class="node-template-icon">👤</span>
+          <span class="node-template-label">角色</span>
+        </div>
+        <div class="node-template" data-node-type="audio">
+          <span class="node-template-icon">🎵</span>
+          <span class="node-template-label">音频</span>
+        </div>
+        <div class="node-template" data-node-type="sfx">
+          <span class="node-template-icon">🔊</span>
+          <span class="node-template-label">音效</span>
+        </div>
+        <div class="node-template" data-node-type="variable">
+          <span class="node-template-icon">📊</span>
+          <span class="node-template-label">变量</span>
+        </div>
+        <div class="node-template" data-node-type="condition">
+          <span class="node-template-icon">❓</span>
+          <span class="node-template-label">条件</span>
+        </div>
+        <div class="node-template" data-node-type="jump">
+          <span class="node-template-icon">⏭️</span>
+          <span class="node-template-label">跳转</span>
+        </div>
+        <div class="node-template" data-node-type="ending">
+          <span class="node-template-icon">🏁</span>
+          <span class="node-template-label">结局</span>
+        </div>
+        <div class="node-template" data-node-type="html">
+          <span class="node-template-icon">🌐</span>
+          <span class="node-template-label">HTML</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="editor-container" id="editor-container"></div>
+  </div>
+
+  <div class="status-bar">
+    <div class="status-info">
+      <span id="status-nodes">节点数: 0</span>
+      <span id="status-connections">连接数: 0</span>
+      <span id="status-selected">选中: 无</span>
+    </div>
+    <div>工作流编辑器 [新版]</div>
+  </div>
+
+</body>
+</html>
